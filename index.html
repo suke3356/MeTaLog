@@ -44,6 +44,15 @@ width:100%;
 margin:5px 0;
 padding:10px;
 font-size:16px;
+background:#222;
+color:white;
+border:1px solid #555;
+}
+
+.editor{
+border:1px solid #555;
+padding:10px;
+margin-top:10px;
 }
 
 </style>
@@ -57,8 +66,32 @@ font-size:16px;
 
 <div id="list"></div>
 
-<button onclick="addFolder()">📁 フォルダ追加</button>
-<button onclick="addLog()">📝 ログ追加</button>
+<button onclick="showFolderEditor()">📁 フォルダ追加</button>
+<button onclick="showLogEditor()">📝 ログ追加</button>
+
+<div id="folderEditor" class="editor" style="display:none">
+
+<h3>フォルダ作成</h3>
+
+<input id="folderName" placeholder="フォルダ名">
+
+<button onclick="createFolder()">作成</button>
+<button onclick="cancelFolder()">キャンセル</button>
+
+</div>
+
+<div id="logEditor" class="editor" style="display:none">
+
+<h3>ログ入力</h3>
+
+<input id="logTitle" placeholder="タイトル">
+
+<textarea id="logText" rows="10" placeholder="本文"></textarea>
+
+<button onclick="saveLog()">保存</button>
+<button onclick="cancelLog()">キャンセル</button>
+
+</div>
 
 <script>
 
@@ -105,7 +138,7 @@ div.className="card"
 div.innerHTML=`
 <b>${l.date}</b><br>
 ${l.title}<br>
-${l.text}
+${l.text.replace(/\n/g,"<br>")}
 <br>
 <button onclick="deleteLog(${i})">削除</button>
 `
@@ -141,9 +174,22 @@ path.appendChild(btn)
 
 }
 
-function addFolder(){
+function showFolderEditor(){
 
-let name=prompt("フォルダ名")
+document.getElementById("folderEditor").style.display="block"
+
+}
+
+function cancelFolder(){
+
+document.getElementById("folderEditor").style.display="none"
+document.getElementById("folderName").value=""
+
+}
+
+function createFolder(){
+
+let name=document.getElementById("folderName").value
 
 if(!name)return
 
@@ -153,15 +199,32 @@ folders:[],
 logs:[]
 })
 
+document.getElementById("folderName").value=""
+document.getElementById("folderEditor").style.display="none"
+
 save()
 render()
 
 }
 
-function addLog(){
+function showLogEditor(){
 
-let title=prompt("タイトル")
-let text=prompt("本文")
+document.getElementById("logEditor").style.display="block"
+
+}
+
+function cancelLog(){
+
+document.getElementById("logEditor").style.display="none"
+document.getElementById("logTitle").value=""
+document.getElementById("logText").value=""
+
+}
+
+function saveLog(){
+
+let title=document.getElementById("logTitle").value
+let text=document.getElementById("logText").value
 
 if(!title)return
 
@@ -170,6 +233,10 @@ date:new Date().toLocaleDateString(),
 title,
 text
 })
+
+document.getElementById("logTitle").value=""
+document.getElementById("logText").value=""
+document.getElementById("logEditor").style.display="none"
 
 save()
 render()
