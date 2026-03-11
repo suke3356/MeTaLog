@@ -7,9 +7,6 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-
 <style>
 
 body{
@@ -63,12 +60,17 @@ box-sizing:border-box;
 left:200%;
 }
 
+.link{
+color:#6cf;
+cursor:pointer;
+text-decoration:underline;
+}
+
 </style>
 </head>
 
 <body>
 
-<!-- 一覧画面 -->
 <div id="listView" class="screen">
 
 <h1>MeTaLog</h1>
@@ -79,13 +81,9 @@ left:200%;
 
 <button onclick="addFolder()">📁 フォルダ追加</button>
 <button onclick="openEditor()">📝 ログ追加</button>
-<button onclick="exportData()">📤 エクスポート</button>
-<button onclick="importData()">📥 インポート</button>
-<input type="file" id="importFile" style="display:none">
 
 </div>
 
-<!-- 入力画面 -->
 <div id="editorView" class="screen hidden">
 
 <button onclick="closeEditor()">← 戻る</button>
@@ -124,6 +122,43 @@ document.getElementById("listView").classList.add("hidden")
 document.getElementById("editorView").classList.remove("hidden")
 }
 
+function parseLinks(text){
+
+return text.replace(/\[\[(.*?)\]\]/g,(match,title)=>{
+
+return `<span class="link" onclick="openLink('${title}')">${title}</span>`
+
+})
+
+}
+
+function openLink(title){
+
+function search(node){
+
+for(let log of node.logs){
+
+if(log.title===title){
+alert(log.text)
+return true
+}
+
+}
+
+for(let folder of node.folders){
+
+if(search(folder)) return true
+
+}
+
+return false
+
+}
+
+search(data)
+
+}
+
 function render(){
 
 let node=current()
@@ -136,7 +171,9 @@ node.folders.forEach((f,i)=>{
 let div=document.createElement("div")
 div.className="folder"
 
-div.innerHTML="📁 "+f.name
+div.innerHTML=`📁 ${f.name}
+<br>
+<button onclick="deleteFolder(${i});event.stopPropagation()">削除</button>`
 
 div.onclick=()=>{
 stack.push(f)
@@ -155,7 +192,7 @@ div.className="card"
 div.innerHTML=`
 <b>${l.date}</b><br>
 ${l.title}<br>
-${l.text.replace(/\n/g,"<br>")}
+${parseLinks(l.text).replace(/\n/g,"<br>")}
 <br>
 <button onclick="deleteLog(${i})">削除</button>
 `
@@ -208,6 +245,17 @@ render()
 
 }
 
+function deleteFolder(i){
+
+if(!confirm("フォルダ削除しますか？")) return
+
+current().folders.splice(i,1)
+
+save()
+render()
+
+}
+
 function openEditor(){
 
 document.getElementById("logTitle").value=""
@@ -250,84 +298,14 @@ render()
 
 function deleteLog(i){
 
+if(!confirm("ログ削除しますか？")) return
+
 current().logs.splice(i,1)
 
 save()
 render()
 
 }
-
-function exportData(){
-
-let dataStr = JSON.stringify(data,null,2)
-
-let blob = new Blob([dataStr],{type:"application/json"})
-
-let a = document.createElement("a")
-
-a.href = URL.createObjectURL(blob)
-
-a.download = "metalog_backup.json"
-
-a.click()
-
-}
-
-function importData(){
-
-document.getElementById("importFile").click()
-
-}
-
-document.getElementById("importFile").addEventListener("change",function(e){
-
-let file = e.target.files[0]
-
-let reader = new FileReader()
-
-reader.onload=function(){
-
-data = JSON.parse(reader.result)
-
-save()
-
-stack=[data]
-
-render()
-
-}
-
-reader.readAsText(file)
-
-})
-
-function autoBackup(){
-
-let lastBackup = localStorage.getItem("metalog_backup_date")
-
-let today = new Date().toISOString().slice(0,10)
-
-if(lastBackup !== today){
-
-let dataStr = JSON.stringify(data,null,2)
-
-let blob = new Blob([dataStr],{type:"application/json"})
-
-let a = document.createElement("a")
-
-a.href = URL.createObjectURL(blob)
-
-a.download = "metalog_backup_"+today+".json"
-
-a.click()
-
-localStorage.setItem("metalog_backup_date",today)
-
-}
-
-}
-
-autoBackup()
 
 render()
 
