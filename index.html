@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+
+<title>MeTaLog</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="MeTaLog">
+
+<style>
+
+body{
+font-family:sans-serif;
+margin:20px;
+background:#111;
+color:white;
+}
+
+button{
+padding:12px;
+margin:5px;
+font-size:16px;
+}
+
+.card{
+border:1px solid #444;
+padding:10px;
+margin:5px 0;
+}
+
+.folder{
+border:1px solid #666;
+padding:10px;
+margin:5px 0;
+cursor:pointer;
+}
+
+input,textarea{
+width:100%;
+margin:5px 0;
+padding:10px;
+font-size:16px;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>MeTaLog</h1>
+
+<div id="path"></div>
+
+<div id="list"></div>
+
+<button onclick="addFolder()">📁 フォルダ追加</button>
+<button onclick="addLog()">📝 ログ追加</button>
+
+<script>
+
+let data = JSON.parse(localStorage.getItem("metalog") || '{"name":"root","folders":[],"logs":[]}')
+
+let stack=[data]
+
+function save(){
+localStorage.setItem("metalog",JSON.stringify(data))
+}
+
+function current(){
+return stack[stack.length-1]
+}
+
+function render(){
+
+let node=current()
+
+let list=document.getElementById("list")
+list.innerHTML=""
+
+node.folders.forEach((f,i)=>{
+
+let div=document.createElement("div")
+div.className="folder"
+
+div.innerHTML="📁 "+f.name
+
+div.onclick=()=>{
+stack.push(f)
+render()
+}
+
+list.appendChild(div)
+
+})
+
+node.logs.forEach((l,i)=>{
+
+let div=document.createElement("div")
+div.className="card"
+
+div.innerHTML=`
+<b>${l.date}</b><br>
+${l.title}<br>
+${l.text}
+<br>
+<button onclick="deleteLog(${i})">削除</button>
+`
+
+list.appendChild(div)
+
+})
+
+renderPath()
+
+}
+
+function renderPath(){
+
+let path=document.getElementById("path")
+
+path.innerHTML=""
+
+stack.forEach((p,i)=>{
+
+let btn=document.createElement("button")
+
+btn.innerText=p.name
+
+btn.onclick=()=>{
+stack=stack.slice(0,i+1)
+render()
+}
+
+path.appendChild(btn)
+
+})
+
+}
+
+function addFolder(){
+
+let name=prompt("フォルダ名")
+
+if(!name)return
+
+current().folders.push({
+name:name,
+folders:[],
+logs:[]
+})
+
+save()
+render()
+
+}
+
+function addLog(){
+
+let title=prompt("タイトル")
+let text=prompt("本文")
+
+if(!title)return
+
+current().logs.push({
+date:new Date().toLocaleDateString(),
+title,
+text
+})
+
+save()
+render()
+
+}
+
+function deleteLog(i){
+
+current().logs.splice(i,1)
+
+save()
+render()
+
+}
+
+render()
+
+</script>
+
+</body>
+</html>
