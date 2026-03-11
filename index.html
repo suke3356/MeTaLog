@@ -79,6 +79,9 @@ left:200%;
 
 <button onclick="addFolder()">📁 フォルダ追加</button>
 <button onclick="openEditor()">📝 ログ追加</button>
+<button onclick="exportData()">📤 エクスポート</button>
+<button onclick="importData()">📥 インポート</button>
+<input type="file" id="importFile" style="display:none">
 
 </div>
 
@@ -253,6 +256,78 @@ save()
 render()
 
 }
+
+function exportData(){
+
+let dataStr = JSON.stringify(data,null,2)
+
+let blob = new Blob([dataStr],{type:"application/json"})
+
+let a = document.createElement("a")
+
+a.href = URL.createObjectURL(blob)
+
+a.download = "metalog_backup.json"
+
+a.click()
+
+}
+
+function importData(){
+
+document.getElementById("importFile").click()
+
+}
+
+document.getElementById("importFile").addEventListener("change",function(e){
+
+let file = e.target.files[0]
+
+let reader = new FileReader()
+
+reader.onload=function(){
+
+data = JSON.parse(reader.result)
+
+save()
+
+stack=[data]
+
+render()
+
+}
+
+reader.readAsText(file)
+
+})
+
+function autoBackup(){
+
+let lastBackup = localStorage.getItem("metalog_backup_date")
+
+let today = new Date().toISOString().slice(0,10)
+
+if(lastBackup !== today){
+
+let dataStr = JSON.stringify(data,null,2)
+
+let blob = new Blob([dataStr],{type:"application/json"})
+
+let a = document.createElement("a")
+
+a.href = URL.createObjectURL(blob)
+
+a.download = "metalog_backup_"+today+".json"
+
+a.click()
+
+localStorage.setItem("metalog_backup_date",today)
+
+}
+
+}
+
+autoBackup()
 
 render()
 
