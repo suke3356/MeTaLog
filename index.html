@@ -48,12 +48,19 @@ color:white;
 border:1px solid #555;
 }
 
-.hidden{
-display:none;
+.screen{
+position:absolute;
+top:0;
+left:0;
+width:100%;
+min-height:100vh;
+background:#111;
+padding:20px;
+box-sizing:border-box;
 }
 
-.topbar{
-margin-bottom:10px;
+.hidden{
+left:200%;
 }
 
 </style>
@@ -61,10 +68,10 @@ margin-bottom:10px;
 
 <body>
 
-<h1>MeTaLog</h1>
-
 <!-- 一覧画面 -->
-<div id="listView">
+<div id="listView" class="screen">
+
+<h1>MeTaLog</h1>
 
 <div id="path"></div>
 
@@ -75,13 +82,10 @@ margin-bottom:10px;
 
 </div>
 
-
 <!-- 入力画面 -->
-<div id="editorView" class="hidden">
+<div id="editorView" class="screen hidden">
 
-<div class="topbar">
 <button onclick="closeEditor()">← 戻る</button>
-</div>
 
 <h2>ログ入力</h2>
 
@@ -92,7 +96,6 @@ margin-bottom:10px;
 <button onclick="saveLog()">保存</button>
 
 </div>
-
 
 <script>
 
@@ -109,13 +112,13 @@ return stack[stack.length-1]
 }
 
 function showList(){
-document.getElementById("listView").style.display="block"
-document.getElementById("editorView").style.display="none"
+document.getElementById("listView").classList.remove("hidden")
+document.getElementById("editorView").classList.add("hidden")
 }
 
 function showEditor(){
-document.getElementById("listView").style.display="none"
-document.getElementById("editorView").style.display="block"
+document.getElementById("listView").classList.add("hidden")
+document.getElementById("editorView").classList.remove("hidden")
 }
 
 function render(){
@@ -208,6 +211,10 @@ document.getElementById("logTitle").value=""
 document.getElementById("logText").value=""
 
 showEditor()
+
+setTimeout(()=>{
+document.getElementById("logTitle").focus()
+},200)
 
 }
 
