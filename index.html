@@ -9,7 +9,6 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
-
 body{
 font-family:sans-serif;
 margin:20px;
@@ -44,14 +43,26 @@ font-size:16px;
 background:#222;
 color:white;
 border:1px solid #555;
+box-sizing:border-box;
 }
 
 .tag{
 color:#6cf;
 cursor:pointer;
 margin-right:8px;
+text-decoration:underline;
 }
 
+#path{
+margin:10px 0;
+}
+
+#editorView{
+margin-top:16px;
+padding:12px;
+border:1px solid #555;
+background:#181818;
+}
 </style>
 </head>
 
@@ -75,397 +86,291 @@ margin-right:8px;
 <input type="file" id="importFile" style="display:none">
 
 <div id="editorView" style="display:none">
-
 <button onclick="closeEditor()">← 戻る</button>
 
 <h2>ログ入力</h2>
 
 <input id="logTitle" placeholder="タイトル">
-
 <textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
 
 <button onclick="saveLog()">保存</button>
-
 </div>
 
 <script>
-
-let data = JSON.parse(localStorage.getItem("metalog") || '{"name":"root","folders":[],"logs":[]}')
-
-let stack=[data]
-
-let editingIndex=null
+let data = JSON.parse(localStorage.getItem("metalog") || '{"name":"root","folders":[],"logs":[]}');
+let stack = [data];
+let editingIndex = null;
 
 function save(){
-localStorage.setItem("metalog",JSON.stringify(data))
+  localStorage.setItem("metalog", JSON.stringify(data));
 }
 
 function current(){
-return stack[stack.length-1]
+  return stack[stack.length - 1];
 }
 
 function parseTags(text){
-
-return text.replace(/#([^\s#]+)/g,(m,tag)=>{
-
-return `<span class="tag" onclick="searchTag('${tag}')">#${tag}</span>`
-
-})
-
+  return text.replace(/#([^\s#<]+)/g, (m, tag) => {
+    const safeTag = tag.replace(/'/g, "\\'");
+    return `<span class="tag" onclick="searchTag('${safeTag}')">#${tag}</span>`;
+  });
 }
 
 function renderMarkdown(text){
-
-let html = marked.parse(text)
-
-return parseTags(html)
-
+  let html = marked.parse(text || "");
+  return parseTags(html);
 }
 
 function collectTags(){
+  let tags = {};
 
-let tags={}
+  function scan(node){
+    node.logs.forEach(l => {
+      let matches = (l.text || "").match(/#([^\s#]+)/g);
+      if(matches){
+        matches.forEach(t => {
+          let tag = t.slice(1);
+          tags[tag] = (tags[tag] || 0) + 1;
+        });
+      }
+    });
 
-function scan(node){
+    node.folders.forEach(scan);
+  }
 
-node.logs.forEach(l=>{
-
-let matches=l.text.match(/#([^\s#]+)/g)
-
-if(matches){
-
-matches.forEach(t=>{
-
-let tag=t.slice(1)
-
-tags[tag]=(tags[tag]||0)+1
-
-})
-
-}
-
-})
-
-node.folders.forEach(scan)
-
-}
-
-scan(data)
-
-return tags
-
+  scan(data);
+  return tags;
 }
 
 function renderTags(){
+  let tags = collectTags();
+  let div = document.getElementById("tagList");
+  div.innerHTML = "";
 
-let tags=collectTags()
+  Object.keys(tags).sort().forEach(tag => {
+    let span = document.createElement("span");
+    span.className = "tag";
+    span.innerText = `#${tag} (${tags[tag]})`;
+    span.onclick = () => searchTag(tag);
+    div.appendChild(span);
+  });
+}
 
-let div=document.getElementById("tagList")
+function renderPath(){
+  let path = document.getElementById("path");
+  path.innerHTML = "";
 
-div.innerHTML=""
-
-Object.keys(tags).sort().forEach(tag=>{
-
-let span=document.createElement("span")
-
-span.className="tag"
-
-span.innerText=`#${tag} (${tags[tag]})`
-
-span.onclick=()=>searchTag(tag)
-
-div.appendChild(span)
-
-})
-
+  stack.forEach((p, i) => {
+    let btn = document.createElement("button");
+    btn.innerText = p.name;
+    btn.onclick = () => {
+      stack = stack.slice(0, i + 1);
+      render();
+    };
+    path.appendChild(btn);
+  });
 }
 
 function searchTag(tag){
+  let list = document.getElementById("list");
+  list.innerHTML = "";
 
-let list=document.getElementById("list")
-
-list.innerHTML=""
-
-function search(node){
-
-node.logs.forEach((l)=>{
-
-if(l.text.includes("#"+tag)){
-
-let div=document.createElement("div")
-
-div.className="card"
-
-div.innerHTML=`
+  function search(node){
+    node.logs.forEach((l) => {
+      if((l.text || "").includes("#" + tag)){
+        let div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
 <b>${l.date}</b><br>
 ${l.title}<br>
 ${renderMarkdown(l.text)}
-`
+`;
+        list.appendChild(div);
+      }
+    });
 
-list.appendChild(div)
+    node.folders.forEach(search);
+  }
 
-}
-
-})
-
-node.folders.forEach(search)
-
-}
-
-search(data)
-
+  search(data);
 }
 
 function render(){
+  let node = current();
+  let list = document.getElementById("list");
+  list.innerHTML = "";
 
-let node=current()
+  node.folders.forEach((f, i) => {
+    let div = document.createElement("div");
+    div.className = "folder";
 
-let list=document.getElementById("list")
-
-list.innerHTML=""
-
-node.folders.forEach((f,i)=>{
-
-let div=document.createElement("div")
-
-div.className="folder"
-
-div.innerHTML=`📁 ${f.name}
+    div.innerHTML = `📁 ${f.name}
 <br>
-<button onclick="deleteFolder(${i});event.stopPropagation()">削除</button>`
+<button onclick="deleteFolder(${i});event.stopPropagation()">削除</button>`;
 
-div.onclick=()=>{
-stack.push(f)
-render()
-}
+    div.onclick = () => {
+      stack.push(f);
+      render();
+    };
 
-list.appendChild(div)
+    list.appendChild(div);
+  });
 
-})
+  node.logs.forEach((l, i) => {
+    let div = document.createElement("div");
+    div.className = "card";
 
-node.logs.forEach((l,i)=>{
-
-let div=document.createElement("div")
-
-div.className="card"
-
-div.innerHTML=`
+    div.innerHTML = `
 <b>${l.date}</b><br>
 ${l.title}<br>
 ${renderMarkdown(l.text)}
 <br>
 <button onclick="editLog(${i})">編集</button>
 <button onclick="deleteLog(${i})">削除</button>
-`
+`;
 
-list.appendChild(div)
+    list.appendChild(div);
+  });
 
-})
-
-renderTags()
-
+  renderTags();
+  renderPath();
 }
 
 function addFolder(){
+  let name = prompt("フォルダ名");
+  if(!name) return;
 
-let name=prompt("フォルダ名")
+  current().folders.push({
+    name: name,
+    folders: [],
+    logs: []
+  });
 
-if(!name)return
-
-current().folders.push({
-name:name,
-folders:[],
-logs:[]
-})
-
-save()
-render()
-
+  save();
+  render();
 }
 
 function deleteFolder(i){
+  if(!confirm("フォルダ削除しますか？")) return;
 
-if(!confirm("フォルダ削除しますか？")) return
-
-current().folders.splice(i,1)
-
-save()
-render()
-
+  current().folders.splice(i, 1);
+  save();
+  render();
 }
 
 function openEditor(){
-
-editingIndex=null
-
-document.getElementById("logTitle").value=""
-document.getElementById("logText").value=""
-
-document.getElementById("editorView").style.display="block"
-
+  editingIndex = null;
+  document.getElementById("logTitle").value = "";
+  document.getElementById("logText").value = "";
+  document.getElementById("editorView").style.display = "block";
 }
 
 function editLog(i){
-
-let log=current().logs[i]
-
-editingIndex=i
-
-document.getElementById("logTitle").value=log.title
-document.getElementById("logText").value=log.text
-
-document.getElementById("editorView").style.display="block"
-
+  let log = current().logs[i];
+  editingIndex = i;
+  document.getElementById("logTitle").value = log.title;
+  document.getElementById("logText").value = log.text;
+  document.getElementById("editorView").style.display = "block";
 }
 
 function closeEditor(){
-
-document.getElementById("editorView").style.display="none"
-
+  document.getElementById("editorView").style.display = "none";
 }
 
 function saveLog(){
+  let title = document.getElementById("logTitle").value;
+  let text = document.getElementById("logText").value;
 
-let title=document.getElementById("logTitle").value
-let text=document.getElementById("logText").value
+  if(!title) return;
 
-if(!title)return
+  if(editingIndex === null){
+    current().logs.push({
+      date: new Date().toLocaleDateString(),
+      title,
+      text
+    });
+  }else{
+    current().logs[editingIndex].title = title;
+    current().logs[editingIndex].text = text;
+  }
 
-if(editingIndex===null){
-
-current().logs.push({
-date:new Date().toLocaleDateString(),
-title,
-text
-})
-
-}else{
-
-current().logs[editingIndex].title=title
-current().logs[editingIndex].text=text
-
-}
-
-save()
-
-closeEditor()
-
-render()
-
+  save();
+  closeEditor();
+  render();
 }
 
 function deleteLog(i){
+  if(!confirm("ログ削除しますか？")) return;
 
-if(!confirm("ログ削除しますか？")) return
-
-current().logs.splice(i,1)
-
-save()
-render()
-
+  current().logs.splice(i, 1);
+  save();
+  render();
 }
 
 function searchLogs(){
+  let q = document.getElementById("searchBox").value.toLowerCase();
+  let list = document.getElementById("list");
+  list.innerHTML = "";
 
-let q=document.getElementById("searchBox").value.toLowerCase()
-
-let list=document.getElementById("list")
-
-list.innerHTML=""
-
-function search(node){
-
-node.logs.forEach((l)=>{
-
-if(
-l.title.toLowerCase().includes(q) ||
-l.text.toLowerCase().includes(q)
-){
-
-let div=document.createElement("div")
-
-div.className="card"
-
-div.innerHTML=`
+  function search(node){
+    node.logs.forEach((l) => {
+      if(
+        (l.title || "").toLowerCase().includes(q) ||
+        (l.text || "").toLowerCase().includes(q)
+      ){
+        let div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
 <b>${l.date}</b><br>
 ${l.title}<br>
 ${renderMarkdown(l.text)}
-`
+`;
+        list.appendChild(div);
+      }
+    });
 
-list.appendChild(div)
+    node.folders.forEach(search);
+  }
 
+  search(data);
 }
-
-})
-
-node.folders.forEach(search)
-
-}
-
-search(data)
-
-}
-
-/* ===== ここからバックアップ機能 ===== */
 
 function exportData(){
-
-let dataStr = JSON.stringify(data,null,2)
-
-let blob = new Blob([dataStr],{type:"application/json"})
-
-let a = document.createElement("a")
-
-a.href = URL.createObjectURL(blob)
-
-a.download = "metalog_backup.json"
-
-a.click()
-
+  let dataStr = JSON.stringify(data, null, 2);
+  let blob = new Blob([dataStr], {type:"application/json"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "metalog_backup.json";
+  a.click();
 }
 
 function importData(){
-
-document.getElementById("importFile").click()
-
+  document.getElementById("importFile").click();
 }
 
-document.getElementById("importFile").addEventListener("change",function(e){
+document.getElementById("importFile").addEventListener("change", function(e){
+  let file = e.target.files[0];
+  if(!file) return;
 
-let file = e.target.files[0]
+  let reader = new FileReader();
 
-if(!file)return
+  reader.onload = function(){
+    try{
+      data = JSON.parse(reader.result);
+      save();
+      stack = [data];
+      render();
+      alert("インポート完了");
+    }catch(err){
+      alert("読み込みエラー");
+    }
+  };
 
-let reader = new FileReader()
+  reader.readAsText(file);
+});
 
-reader.onload=function(){
-
-try{
-
-data = JSON.parse(reader.result)
-
-save()
-
-stack=[data]
-
-render()
-
-alert("インポート完了")
-
-}catch(err){
-
-alert("読み込みエラー")
-
-}
-
-}
-
-reader.readAsText(file)
-
-})
-
-render()
-
+render();
 </script>
+
 </body>
 </html>
