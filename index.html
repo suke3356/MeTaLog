@@ -9,7 +9,6 @@
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="MeTaLog">
 
 <style>
 
@@ -26,22 +25,22 @@ margin:5px;
 font-size:16px;
 }
 
-.card{
-border:1px solid #444;
-padding:10px;
-margin:5px 0;
-}
-
 .folder{
 border:1px solid #666;
-padding:10px;
-margin:5px 0;
+padding:12px;
+margin:6px 0;
 cursor:pointer;
+}
+
+.card{
+border:1px solid #444;
+padding:12px;
+margin:6px 0;
 }
 
 input,textarea{
 width:100%;
-margin:5px 0;
+margin:6px 0;
 padding:10px;
 font-size:16px;
 background:#222;
@@ -49,10 +48,12 @@ color:white;
 border:1px solid #555;
 }
 
-.editor{
-border:1px solid #555;
-padding:10px;
-margin-top:10px;
+.hidden{
+display:none;
+}
+
+.topbar{
+margin-bottom:10px;
 }
 
 </style>
@@ -62,36 +63,36 @@ margin-top:10px;
 
 <h1>MeTaLog</h1>
 
+<!-- 一覧画面 -->
+<div id="listView">
+
 <div id="path"></div>
 
 <div id="list"></div>
 
-<button onclick="showFolderEditor()">📁 フォルダ追加</button>
-<button onclick="showLogEditor()">📝 ログ追加</button>
-
-<div id="folderEditor" class="editor" style="display:none">
-
-<h3>フォルダ作成</h3>
-
-<input id="folderName" placeholder="フォルダ名">
-
-<button onclick="createFolder()">作成</button>
-<button onclick="cancelFolder()">キャンセル</button>
+<button onclick="addFolder()">📁 フォルダ追加</button>
+<button onclick="openEditor()">📝 ログ追加</button>
 
 </div>
 
-<div id="logEditor" class="editor" style="display:none">
 
-<h3>ログ入力</h3>
+<!-- 入力画面 -->
+<div id="editorView" class="hidden">
+
+<div class="topbar">
+<button onclick="closeEditor()">← 戻る</button>
+</div>
+
+<h2>ログ入力</h2>
 
 <input id="logTitle" placeholder="タイトル">
 
-<textarea id="logText" rows="10" placeholder="本文"></textarea>
+<textarea id="logText" rows="12" placeholder="本文"></textarea>
 
 <button onclick="saveLog()">保存</button>
-<button onclick="cancelLog()">キャンセル</button>
 
 </div>
+
 
 <script>
 
@@ -105,6 +106,16 @@ localStorage.setItem("metalog",JSON.stringify(data))
 
 function current(){
 return stack[stack.length-1]
+}
+
+function showList(){
+document.getElementById("listView").style.display="block"
+document.getElementById("editorView").style.display="none"
+}
+
+function showEditor(){
+document.getElementById("listView").style.display="none"
+document.getElementById("editorView").style.display="block"
 }
 
 function render(){
@@ -174,22 +185,9 @@ path.appendChild(btn)
 
 }
 
-function showFolderEditor(){
+function addFolder(){
 
-document.getElementById("folderEditor").style.display="block"
-
-}
-
-function cancelFolder(){
-
-document.getElementById("folderEditor").style.display="none"
-document.getElementById("folderName").value=""
-
-}
-
-function createFolder(){
-
-let name=document.getElementById("folderName").value
+let name=prompt("フォルダ名")
 
 if(!name)return
 
@@ -199,25 +197,23 @@ folders:[],
 logs:[]
 })
 
-document.getElementById("folderName").value=""
-document.getElementById("folderEditor").style.display="none"
-
 save()
 render()
 
 }
 
-function showLogEditor(){
+function openEditor(){
 
-document.getElementById("logEditor").style.display="block"
+document.getElementById("logTitle").value=""
+document.getElementById("logText").value=""
+
+showEditor()
 
 }
 
-function cancelLog(){
+function closeEditor(){
 
-document.getElementById("logEditor").style.display="none"
-document.getElementById("logTitle").value=""
-document.getElementById("logText").value=""
+showList()
 
 }
 
@@ -234,11 +230,10 @@ title,
 text
 })
 
-document.getElementById("logTitle").value=""
-document.getElementById("logText").value=""
-document.getElementById("logEditor").style.display="none"
-
 save()
+
+showList()
+
 render()
 
 }
