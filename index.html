@@ -2,10 +2,11 @@
 <html>
 <head>
 <meta charset="utf-8">
-
 <title>MeTaLog</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
 
@@ -17,9 +18,9 @@ color:white;
 }
 
 button{
-padding:12px;
-margin:5px;
-font-size:16px;
+padding:10px;
+margin:4px;
+font-size:15px;
 }
 
 .folder{
@@ -60,7 +61,7 @@ box-sizing:border-box;
 left:200%;
 }
 
-.link{
+.tag{
 color:#6cf;
 cursor:pointer;
 text-decoration:underline;
@@ -74,6 +75,8 @@ text-decoration:underline;
 <div id="listView" class="screen">
 
 <h1>MeTaLog</h1>
+
+<input id="searchBox" placeholder="検索..." oninput="searchLogs()">
 
 <div id="path"></div>
 
@@ -92,7 +95,7 @@ text-decoration:underline;
 
 <input id="logTitle" placeholder="タイトル">
 
-<textarea id="logText" rows="12" placeholder="本文"></textarea>
+<textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
 
 <button onclick="saveLog()">保存</button>
 
@@ -103,6 +106,8 @@ text-decoration:underline;
 let data = JSON.parse(localStorage.getItem("metalog") || '{"name":"root","folders":[],"logs":[]}')
 
 let stack=[data]
+
+let editingIndex=null
 
 function save(){
 localStorage.setItem("metalog",JSON.stringify(data))
@@ -122,36 +127,53 @@ document.getElementById("listView").classList.add("hidden")
 document.getElementById("editorView").classList.remove("hidden")
 }
 
-function parseLinks(text){
+function parseTags(text){
 
-return text.replace(/\[\[(.*?)\]\]/g,(match,title)=>{
+return text.replace(/#(\w+)/g,(m,tag)=>{
 
-return `<span class="link" onclick="openLink('${title}')">${title}</span>`
+return `<span class="tag" onclick="searchTag('${tag}')">#${tag}</span>`
 
 })
 
 }
 
-function openLink(title){
+function renderMarkdown(text){
+
+let html = marked.parse(text)
+
+return parseTags(html)
+
+}
+
+function searchTag(tag){
+
+let list=document.getElementById("list")
+
+list.innerHTML=""
 
 function search(node){
 
-for(let log of node.logs){
+node.logs.forEach((l)=>{
 
-if(log.title===title){
-alert(log.text)
-return true
+if(l.text.includes("#"+tag)){
+
+let div=document.createElement("div")
+
+div.className="card"
+
+div.innerHTML=`
+<b>${l.date}</b><br>
+${l.title}<br>
+${renderMarkdown(l.text)}
+`
+
+list.appendChild(div)
+
 }
 
-}
+})
 
-for(let folder of node.folders){
-
-if(search(folder)) return true
-
-}
-
-return false
+node.folders.forEach(search)
 
 }
 
@@ -164,11 +186,13 @@ function render(){
 let node=current()
 
 let list=document.getElementById("list")
+
 list.innerHTML=""
 
 node.folders.forEach((f,i)=>{
 
 let div=document.createElement("div")
+
 div.className="folder"
 
 div.innerHTML=`📁 ${f.name}
@@ -187,13 +211,15 @@ list.appendChild(div)
 node.logs.forEach((l,i)=>{
 
 let div=document.createElement("div")
+
 div.className="card"
 
 div.innerHTML=`
 <b>${l.date}</b><br>
 ${l.title}<br>
-${parseLinks(l.text).replace(/\n/g,"<br>")}
+${renderMarkdown(l.text)}
 <br>
+<button onclick="editLog(${i})">編集</button>
 <button onclick="deleteLog(${i})">削除</button>
 `
 
@@ -258,6 +284,8 @@ render()
 
 function openEditor(){
 
+editingIndex=null
+
 document.getElementById("logTitle").value=""
 document.getElementById("logText").value=""
 
@@ -266,6 +294,19 @@ showEditor()
 setTimeout(()=>{
 document.getElementById("logTitle").focus()
 },200)
+
+}
+
+function editLog(i){
+
+let log=current().logs[i]
+
+editingIndex=i
+
+document.getElementById("logTitle").value=log.title
+document.getElementById("logText").value=log.text
+
+showEditor()
 
 }
 
@@ -282,11 +323,20 @@ let text=document.getElementById("logText").value
 
 if(!title)return
 
+if(editingIndex===null){
+
 current().logs.push({
 date:new Date().toLocaleDateString(),
 title,
 text
 })
+
+}else{
+
+current().logs[editingIndex].title=title
+current().logs[editingIndex].text=text
+
+}
 
 save()
 
@@ -304,6 +354,47 @@ current().logs.splice(i,1)
 
 save()
 render()
+
+}
+
+function searchLogs(){
+
+let q=document.getElementById("searchBox").value.toLowerCase()
+
+let list=document.getElementById("list")
+
+list.innerHTML=""
+
+function search(node){
+
+node.logs.forEach((l)=>{
+
+if(
+l.title.toLowerCase().includes(q) ||
+l.text.toLowerCase().includes(q)
+){
+
+let div=document.createElement("div")
+
+div.className="card"
+
+div.innerHTML=`
+<b>${l.date}</b><br>
+${l.title}<br>
+${renderMarkdown(l.text)}
+`
+
+list.appendChild(div)
+
+}
+
+})
+
+node.folders.forEach(search)
+
+}
+
+search(data)
 
 }
 
