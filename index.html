@@ -46,25 +46,10 @@ color:white;
 border:1px solid #555;
 }
 
-.screen{
-position:absolute;
-top:0;
-left:0;
-width:100%;
-min-height:100vh;
-background:#111;
-padding:20px;
-box-sizing:border-box;
-}
-
-.hidden{
-left:200%;
-}
-
 .tag{
 color:#6cf;
 cursor:pointer;
-text-decoration:underline;
+margin-right:8px;
 }
 
 </style>
@@ -72,11 +57,12 @@ text-decoration:underline;
 
 <body>
 
-<div id="listView" class="screen">
-
 <h1>MeTaLog</h1>
 
 <input id="searchBox" placeholder="検索..." oninput="searchLogs()">
+
+<h3>タグ</h3>
+<div id="tagList"></div>
 
 <div id="path"></div>
 
@@ -85,9 +71,8 @@ text-decoration:underline;
 <button onclick="addFolder()">📁 フォルダ追加</button>
 <button onclick="openEditor()">📝 ログ追加</button>
 
-</div>
 
-<div id="editorView" class="screen hidden">
+<div id="editorView" style="display:none">
 
 <button onclick="closeEditor()">← 戻る</button>
 
@@ -117,19 +102,9 @@ function current(){
 return stack[stack.length-1]
 }
 
-function showList(){
-document.getElementById("listView").classList.remove("hidden")
-document.getElementById("editorView").classList.add("hidden")
-}
-
-function showEditor(){
-document.getElementById("listView").classList.add("hidden")
-document.getElementById("editorView").classList.remove("hidden")
-}
-
 function parseTags(text){
 
-return text.replace(/#(\w+)/g,(m,tag)=>{
+return text.replace(/#([^\s#]+)/g,(m,tag)=>{
 
 return `<span class="tag" onclick="searchTag('${tag}')">#${tag}</span>`
 
@@ -142,6 +117,64 @@ function renderMarkdown(text){
 let html = marked.parse(text)
 
 return parseTags(html)
+
+}
+
+function collectTags(){
+
+let tags={}
+
+function scan(node){
+
+node.logs.forEach(l=>{
+
+let matches=l.text.match(/#([^\s#]+)/g)
+
+if(matches){
+
+matches.forEach(t=>{
+
+let tag=t.slice(1)
+
+tags[tag]=(tags[tag]||0)+1
+
+})
+
+}
+
+})
+
+node.folders.forEach(scan)
+
+}
+
+scan(data)
+
+return tags
+
+}
+
+function renderTags(){
+
+let tags=collectTags()
+
+let div=document.getElementById("tagList")
+
+div.innerHTML=""
+
+Object.keys(tags).sort().forEach(tag=>{
+
+let span=document.createElement("span")
+
+span.className="tag"
+
+span.innerText=`#${tag} (${tags[tag]})`
+
+span.onclick=()=>searchTag(tag)
+
+div.appendChild(span)
+
+})
 
 }
 
@@ -227,30 +260,7 @@ list.appendChild(div)
 
 })
 
-renderPath()
-
-}
-
-function renderPath(){
-
-let path=document.getElementById("path")
-
-path.innerHTML=""
-
-stack.forEach((p,i)=>{
-
-let btn=document.createElement("button")
-
-btn.innerText=p.name
-
-btn.onclick=()=>{
-stack=stack.slice(0,i+1)
-render()
-}
-
-path.appendChild(btn)
-
-})
+renderTags()
 
 }
 
@@ -289,11 +299,7 @@ editingIndex=null
 document.getElementById("logTitle").value=""
 document.getElementById("logText").value=""
 
-showEditor()
-
-setTimeout(()=>{
-document.getElementById("logTitle").focus()
-},200)
+document.getElementById("editorView").style.display="block"
 
 }
 
@@ -306,13 +312,13 @@ editingIndex=i
 document.getElementById("logTitle").value=log.title
 document.getElementById("logText").value=log.text
 
-showEditor()
+document.getElementById("editorView").style.display="block"
 
 }
 
 function closeEditor(){
 
-showList()
+document.getElementById("editorView").style.display="none"
 
 }
 
@@ -340,7 +346,7 @@ current().logs[editingIndex].text=text
 
 save()
 
-showList()
+closeEditor()
 
 render()
 
