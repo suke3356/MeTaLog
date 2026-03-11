@@ -71,6 +71,9 @@ margin-right:8px;
 <button onclick="addFolder()">📁 フォルダ追加</button>
 <button onclick="openEditor()">📝 ログ追加</button>
 
+<button onclick="exportData()">📤 エクスポート</button>
+<button onclick="importData()">📥 インポート</button>
+<input type="file" id="importFile" style="display:none">
 
 <div id="editorView" style="display:none">
 
@@ -404,9 +407,66 @@ search(data)
 
 }
 
+/* ===== ここからバックアップ機能 ===== */
+
+function exportData(){
+
+let dataStr = JSON.stringify(data,null,2)
+
+let blob = new Blob([dataStr],{type:"application/json"})
+
+let a = document.createElement("a")
+
+a.href = URL.createObjectURL(blob)
+
+a.download = "metalog_backup.json"
+
+a.click()
+
+}
+
+function importData(){
+
+document.getElementById("importFile").click()
+
+}
+
+document.getElementById("importFile").addEventListener("change",function(e){
+
+let file = e.target.files[0]
+
+if(!file)return
+
+let reader = new FileReader()
+
+reader.onload=function(){
+
+try{
+
+data = JSON.parse(reader.result)
+
+save()
+
+stack=[data]
+
+render()
+
+alert("インポート完了")
+
+}catch(err){
+
+alert("読み込みエラー")
+
+}
+
+}
+
+reader.readAsText(file)
+
+})
+
 render()
 
 </script>
-
 </body>
 </html>
