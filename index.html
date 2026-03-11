@@ -6,6 +6,12 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- PWA追加（既存機能には影響しない） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MeTaLog">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#111111">
+
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
@@ -368,6 +374,11 @@ document.getElementById("importFile").addEventListener("change", function(e){
 
   reader.readAsText(file);
 });
+
+/* PWA Service Worker 登録（既存機能に影響なし） */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
 
 render();
 </script>
