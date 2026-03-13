@@ -16,64 +16,94 @@
 
 <style>
 body{
-font-family:sans-serif;
-margin:20px;
-background:#111;
-color:white;
+  font-family:sans-serif;
+  margin:20px;
+  background:#111;
+  color:white;
 }
 
 button{
-padding:10px;
-margin:4px;
-font-size:15px;
+  padding:10px;
+  margin:4px;
+  font-size:15px;
 }
 
 .folder{
-border:1px solid #666;
-padding:12px;
-margin:6px 0;
-cursor:pointer;
+  border:1px solid #666;
+  padding:12px;
+  margin:6px 0;
+  cursor:pointer;
+  background:#151515;
 }
 
 .card{
-border:1px solid #444;
-padding:12px;
-margin:6px 0;
+  border:1px solid #444;
+  padding:12px;
+  margin:6px 0;
+  background:#181818;
 }
 
 input,textarea{
-width:100%;
-margin:6px 0;
-padding:10px;
-font-size:16px;
-background:#222;
-color:white;
-border:1px solid #555;
-box-sizing:border-box;
+  width:100%;
+  margin:6px 0;
+  padding:10px;
+  font-size:16px;
+  background:#222;
+  color:white;
+  border:1px solid #555;
+  box-sizing:border-box;
 }
 
 .tag{
-color:#6cf;
-cursor:pointer;
-margin-right:8px;
-text-decoration:underline;
+  color:#6cf;
+  cursor:pointer;
+  margin-right:8px;
+  text-decoration:underline;
 }
 
 #path{
-margin:10px 0;
+  margin:10px 0;
 }
 
 #editorView{
-margin-top:16px;
-padding:12px;
-border:1px solid #555;
-background:#181818;
+  margin-top:16px;
+  padding:12px;
+  border:1px solid #555;
+  background:#181818;
 }
 
 #status{
-margin:8px 0 14px 0;
-font-size:13px;
-color:#aaa;
+  margin:8px 0 14px 0;
+  font-size:13px;
+  color:#aaa;
+}
+
+#listContainer{
+  position:relative;
+  height:60vh;
+  overflow-y:auto;
+  border:1px solid #333;
+  background:#101010;
+  margin-bottom:12px;
+}
+
+#listViewport{
+  position:relative;
+  width:100%;
+}
+
+.virtualItem{
+  position:absolute;
+  left:0;
+  right:0;
+  box-sizing:border-box;
+  padding:0 8px;
+}
+
+.helperText{
+  color:#aaa;
+  font-size:13px;
+  margin:6px 0;
 }
 </style>
 </head>
@@ -90,7 +120,11 @@ color:#aaa;
 
 <div id="path"></div>
 
-<div id="list"></div>
+<div class="helperText">ログ件数が増えても軽くするため、一覧は仮想リスト表示です。</div>
+
+<div id="listContainer">
+  <div id="listViewport"></div>
+</div>
 
 <button onclick="addFolder()">📁 フォルダ追加</button>
 <button onclick="openEditor()">📝 ログ追加</button>
@@ -99,14 +133,14 @@ color:#aaa;
 <input type="file" id="importFile" style="display:none">
 
 <div id="editorView" style="display:none">
-<button onclick="closeEditor()">← 戻る</button>
+  <button onclick="closeEditor()">← 戻る</button>
 
-<h2>ログ入力</h2>
+  <h2>ログ入力</h2>
 
-<input id="logTitle" placeholder="タイトル">
-<textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
+  <input id="logTitle" placeholder="タイトル">
+  <textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
 
-<button onclick="saveLog()">保存</button>
+  <button onclick="saveLog()">保存</button>
 </div>
 
 <script>
@@ -175,6 +209,9 @@ function makeEmptyRoot(){
 let data = makeEmptyRoot();
 let stack = [data];
 let editingIndex = null;
+let currentMode = "normal"; // normal | search | tag
+let currentSearchResults = [];
+let currentTag = "";
 
 /* =========================
    Search Index
@@ -313,7 +350,7 @@ async function initApp(){
 }
 
 /* =========================
-   UI helpers
+   Markdown / Tags
 ========================= */
 
 function parseTags(text){
@@ -372,75 +409,227 @@ function renderPath(){
     btn.innerText = p.name;
     btn.onclick = () => {
       stack = stack.slice(0, i + 1);
+      currentMode = "normal";
       render();
     };
     path.appendChild(btn);
   });
 }
 
-function searchTag(tag){
-  let list = document.getElementById("list");
-  list.innerHTML = "";
+/* =========================
+   Virtual List
+========================= */
 
-  function search(node){
-    node.logs.forEach((l) => {
-      if((l.text || "").includes("#" + tag)){
-        let div = document.createElement("div");
-        div.className = "card";
-        div.innerHTML = `
-<b>${l.date}</b><br>
-${l.title}<br>
-${renderMarkdown(l.text)}
-`;
-        list.appendChild(div);
-      }
-    });
+const listContainer = document.getElementById("listContainer");
+const listViewport = document.getElementById("listViewport");
 
-    node.folders.forEach(search);
-  }
+let virtualRows = [];
+let rowHeights = [];
+let prefixHeights = [];
+let scheduledMeasure = false;
 
-  search(data);
+function estimateHeight(row){
+  if(row.type === "folder") return 90;
+  if(row.type === "log") return 190;
+  if(row.type === "search") return 170;
+  return 120;
 }
 
-function render(){
-  let node = current();
-  let list = document.getElementById("list");
-  list.innerHTML = "";
+function rebuildHeights(){
+  prefixHeights = new Array(virtualRows.length + 1);
+  prefixHeights[0] = 0;
+
+  for(let i = 0; i < virtualRows.length; i++){
+    const h = rowHeights[i] || estimateHeight(virtualRows[i]);
+    prefixHeights[i + 1] = prefixHeights[i] + h;
+  }
+
+  listViewport.style.height = prefixHeights[virtualRows.length] + "px";
+}
+
+function lowerBoundPrefix(value){
+  let lo = 0;
+  let hi = virtualRows.length;
+
+  while(lo < hi){
+    const mid = Math.floor((lo + hi) / 2);
+    if(prefixHeights[mid] < value){
+      lo = mid + 1;
+    }else{
+      hi = mid;
+    }
+  }
+
+  return Math.max(0, lo - 1);
+}
+
+function makeNormalRows(){
+  const node = current();
+  const rows = [];
 
   node.folders.forEach((f, i) => {
-    let div = document.createElement("div");
-    div.className = "folder";
-
-    div.innerHTML = `📁 ${f.name}
-<br>
-<button onclick="deleteFolder(${i});event.stopPropagation()">削除</button>`;
-
-    div.onclick = () => {
-      stack.push(f);
-      render();
-    };
-
-    list.appendChild(div);
+    rows.push({ type:"folder", folder:f, index:i });
   });
 
   node.logs.forEach((l, i) => {
-    let div = document.createElement("div");
-    div.className = "card";
-
-    div.innerHTML = `
-<b>${l.date}</b><br>
-${l.title}<br>
-${renderMarkdown(l.text)}
-<br>
-<button onclick="editLog(${i})">編集</button>
-<button onclick="deleteLog(${i})">削除</button>
-`;
-
-    list.appendChild(div);
+    rows.push({ type:"log", log:l, index:i });
   });
 
+  return rows;
+}
+
+function makeSearchRows(results){
+  return results.map((doc, i) => ({
+    type:"search",
+    doc,
+    index:i
+  }));
+}
+
+function setRows(rows){
+  virtualRows = rows;
+  rowHeights = rows.map(r => estimateHeight(r));
+  rebuildHeights();
+  renderVirtualViewport();
+}
+
+function rowHTML(row){
+  if(row.type === "folder"){
+    return `
+      <div class="folder" data-row-index="${row.index}">
+        📁 ${row.folder.name}
+        <br>
+        <button onclick="deleteFolder(${row.index});event.stopPropagation()">削除</button>
+      </div>
+    `;
+  }
+
+  if(row.type === "log"){
+    return `
+      <div class="card" data-row-index="${row.index}">
+        <b>${row.log.date}</b><br>
+        ${row.log.title}<br>
+        ${renderMarkdown(row.log.text)}
+        <br>
+        <button onclick="editLog(${row.index})">編集</button>
+        <button onclick="deleteLog(${row.index})">削除</button>
+      </div>
+    `;
+  }
+
+  if(row.type === "search"){
+    return `
+      <div class="card" data-row-index="${row.index}">
+        <b>${row.doc.date}</b><br>
+        ${row.doc.title}<br>
+        ${renderMarkdown(row.doc.text)}
+      </div>
+    `;
+  }
+
+  return "";
+}
+
+function attachFolderClicks(){
+  const folderDivs = listViewport.querySelectorAll(".folder[data-row-index]");
+  folderDivs.forEach(div => {
+    div.onclick = () => {
+      const idx = Number(div.dataset.rowIndex);
+      const row = virtualRows.find(r => r.type === "folder" && r.index === idx);
+      if(row){
+        stack.push(row.folder);
+        currentMode = "normal";
+        render();
+      }
+    };
+  });
+}
+
+function renderVirtualViewport(){
+  if(virtualRows.length === 0){
+    listViewport.innerHTML = "";
+    listViewport.style.height = "0px";
+    return;
+  }
+
+  const scrollTop = listContainer.scrollTop;
+  const viewportHeight = listContainer.clientHeight;
+  const buffer = 600;
+
+  const start = lowerBoundPrefix(Math.max(0, scrollTop - buffer));
+  let end = start;
+
+  while(end < virtualRows.length && prefixHeights[end] < scrollTop + viewportHeight + buffer){
+    end++;
+  }
+
+  let html = "";
+
+  for(let i = start; i < end; i++){
+    const top = prefixHeights[i];
+    html += `
+      <div class="virtualItem" data-virtual-index="${i}" style="top:${top}px;">
+        ${rowHTML(virtualRows[i])}
+      </div>
+    `;
+  }
+
+  listViewport.innerHTML = html;
+  attachFolderClicks();
+  scheduleMeasure();
+}
+
+function scheduleMeasure(){
+  if(scheduledMeasure) return;
+  scheduledMeasure = true;
+
+  requestAnimationFrame(() => {
+    scheduledMeasure = false;
+
+    let changed = false;
+    const items = listViewport.querySelectorAll(".virtualItem");
+
+    items.forEach(el => {
+      const i = Number(el.dataset.virtualIndex);
+      const h = Math.ceil(el.offsetHeight);
+      if(h > 0 && rowHeights[i] !== h){
+        rowHeights[i] = h;
+        changed = true;
+      }
+    });
+
+    if(changed){
+      rebuildHeights();
+      renderVirtualViewport();
+    }
+  });
+}
+
+listContainer.addEventListener("scroll", () => {
+  renderVirtualViewport();
+});
+
+/* =========================
+   Render modes
+========================= */
+
+function searchTag(tag){
+  currentTag = tag;
+  currentMode = "tag";
+  currentSearchResults = searchDocs.filter(doc => (doc.text || "").includes("#" + tag));
+  setRows(makeSearchRows(currentSearchResults));
+}
+
+function render(){
   renderTags();
   renderPath();
+
+  if(currentMode === "search" || currentMode === "tag"){
+    setRows(makeSearchRows(currentSearchResults));
+    return;
+  }
+
+  setRows(makeNormalRows());
 }
 
 /* =========================
@@ -458,6 +647,7 @@ async function addFolder(){
   });
 
   await save();
+  currentMode = "normal";
   render();
 }
 
@@ -466,6 +656,7 @@ async function deleteFolder(i){
 
   current().folders.splice(i, 1);
   await save();
+  currentMode = "normal";
   render();
 }
 
@@ -507,6 +698,7 @@ async function saveLog(){
 
   await save();
   closeEditor();
+  currentMode = "normal";
   render();
 }
 
@@ -515,6 +707,7 @@ async function deleteLog(i){
 
   current().logs.splice(i, 1);
   await save();
+  currentMode = "normal";
   render();
 }
 
@@ -524,26 +717,17 @@ async function deleteLog(i){
 
 function searchLogs(){
   let q = document.getElementById("searchBox").value;
-  let list = document.getElementById("list");
-  list.innerHTML = "";
 
   if(!q.trim()){
+    currentMode = "normal";
+    currentSearchResults = [];
     render();
     return;
   }
 
-  const results = searchIndexed(q);
-
-  results.forEach((doc) => {
-    let div = document.createElement("div");
-    div.className = "card";
-    div.innerHTML = `
-<b>${doc.date}</b><br>
-${doc.title}<br>
-${renderMarkdown(doc.text)}
-`;
-    list.appendChild(div);
-  });
+  currentMode = "search";
+  currentSearchResults = searchIndexed(q);
+  setRows(makeSearchRows(currentSearchResults));
 }
 
 /* =========================
@@ -574,6 +758,8 @@ document.getElementById("importFile").addEventListener("change", function(e){
       data = JSON.parse(reader.result);
       stack = [data];
       await save();
+      currentMode = "normal";
+      currentSearchResults = [];
       render();
       alert("インポート完了");
     }catch(err){
