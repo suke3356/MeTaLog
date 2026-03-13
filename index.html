@@ -6,7 +6,6 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MeTaLog">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -70,12 +69,19 @@ padding:12px;
 border:1px solid #555;
 background:#181818;
 }
+
+#status{
+margin:8px 0 14px 0;
+font-size:13px;
+color:#aaa;
+}
 </style>
 </head>
 
 <body>
 
 <h1>MeTaLog</h1>
+<div id="status">起動中...</div>
 
 <input id="searchBox" placeholder="検索..." oninput="searchLogs()">
 
@@ -104,133 +110,324 @@ background:#181818;
 </div>
 
 <script>
+/* =========================
+   IndexedDB
+========================= */
 
-/* ===== 既存コード（そのまま） ===== */
+const DB_NAME = "MeTaLogDB";
+const DB_VERSION = 1;
+const STORE_NAME = "appState";
+const ROOT_KEY = "rootData";
 
-let data = JSON.parse(localStorage.getItem("metalog") || '{"name":"root","folders":[],"logs":[]}');
+let db = null;
+
+function openDB(){
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = function(event){
+      const database = event.target.result;
+      if(!database.objectStoreNames.contains(STORE_NAME)){
+        database.createObjectStore(STORE_NAME);
+      }
+    };
+
+    request.onsuccess = function(){
+      resolve(request.result);
+    };
+
+    request.onerror = function(){
+      reject(request.error);
+    };
+  });
+}
+
+function idbGet(key){
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(key);
+
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbSet(key, value){
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.put(value, key);
+
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/* =========================
+   App State
+========================= */
+
+function makeEmptyRoot(){
+  return { name:"root", folders:[], logs:[] };
+}
+
+let data = makeEmptyRoot();
 let stack = [data];
 let editingIndex = null;
 
-function save(){
-localStorage.setItem("metalog", JSON.stringify(data));
+/* =========================
+   Search Index
+========================= */
+
+let searchDocs = [];
+let gramIndex = new Map();
+
+function normalizeText(text){
+  return (text || "")
+    .toLowerCase()
+    .normalize("NFKC");
+}
+
+function makeGrams(text){
+  const s = normalizeText(text);
+  const grams = new Set();
+
+  if(!s) return grams;
+
+  if(s.length === 1){
+    grams.add(s);
+    return grams;
+  }
+
+  for(let i=0; i<s.length - 1; i++){
+    grams.add(s.slice(i, i + 2));
+  }
+
+  return grams;
+}
+
+function flattenLogs(node, pathNames = []){
+  let result = [];
+
+  node.logs.forEach((log, index) => {
+    result.push({
+      title: log.title || "",
+      text: log.text || "",
+      date: log.date || "",
+      path: [...pathNames, node.name],
+      nodeRef: log,
+      folderRef: node,
+      indexInFolder: index
+    });
+  });
+
+  node.folders.forEach(folder => {
+    result.push(...flattenLogs(folder, [...pathNames, node.name]));
+  });
+
+  return result;
+}
+
+function rebuildSearchIndex(){
+  searchDocs = flattenLogs(data, []);
+  gramIndex = new Map();
+
+  searchDocs.forEach((doc, docId) => {
+    const source = `${doc.title}\n${doc.text}`;
+    const grams = makeGrams(source);
+
+    grams.forEach(g => {
+      if(!gramIndex.has(g)){
+        gramIndex.set(g, new Set());
+      }
+      gramIndex.get(g).add(docId);
+    });
+  });
+}
+
+function searchIndexed(query){
+  const q = normalizeText(query).trim();
+  if(!q) return [];
+
+  const grams = [...makeGrams(q)];
+  if(grams.length === 0) return [];
+
+  let candidateSet = null;
+
+  for(const g of grams){
+    const ids = gramIndex.get(g) || new Set();
+
+    if(candidateSet === null){
+      candidateSet = new Set(ids);
+    }else{
+      candidateSet = new Set([...candidateSet].filter(x => ids.has(x)));
+    }
+
+    if(candidateSet.size === 0) break;
+  }
+
+  const candidates = candidateSet ? [...candidateSet] : [];
+  return candidates
+    .map(id => searchDocs[id])
+    .filter(doc => {
+      const source = normalizeText(`${doc.title}\n${doc.text}`);
+      return source.includes(q);
+    });
+}
+
+/* =========================
+   Save / Load
+========================= */
+
+async function save(){
+  await idbSet(ROOT_KEY, data);
+  rebuildSearchIndex();
+  setStatus("保存済み");
 }
 
 function current(){
-return stack[stack.length - 1];
+  return stack[stack.length - 1];
 }
 
+function setStatus(text){
+  const el = document.getElementById("status");
+  if(el) el.textContent = text;
+}
+
+async function initApp(){
+  try{
+    db = await openDB();
+
+    const saved = await idbGet(ROOT_KEY);
+    data = saved || makeEmptyRoot();
+    stack = [data];
+    rebuildSearchIndex();
+
+    setStatus("IndexedDB使用中");
+    render();
+  }catch(e){
+    console.error(e);
+    setStatus("起動エラー");
+  }
+}
+
+/* =========================
+   UI helpers
+========================= */
+
 function parseTags(text){
-return text.replace(/#([^\s#<]+)/g, (m, tag) => {
-const safeTag = tag.replace(/'/g, "\\'");
-return `<span class="tag" onclick="searchTag('${safeTag}')">#${tag}</span>`;
-});
+  return text.replace(/#([^\s#<]+)/g, (m, tag) => {
+    const safeTag = tag.replace(/'/g, "\\'");
+    return `<span class="tag" onclick="searchTag('${safeTag}')">#${tag}</span>`;
+  });
 }
 
 function renderMarkdown(text){
-let html = marked.parse(text || "");
-return parseTags(html);
+  let html = marked.parse(text || "");
+  return parseTags(html);
 }
 
 function collectTags(){
-let tags = {};
+  let tags = {};
 
-function scan(node){
-node.logs.forEach(l => {
-let matches = (l.text || "").match(/#([^\s#]+)/g);
-if(matches){
-matches.forEach(t => {
-let tag = t.slice(1);
-tags[tag] = (tags[tag] || 0) + 1;
-});
-}
-});
+  function scan(node){
+    node.logs.forEach(l => {
+      let matches = (l.text || "").match(/#([^\s#]+)/g);
+      if(matches){
+        matches.forEach(t => {
+          let tag = t.slice(1);
+          tags[tag] = (tags[tag] || 0) + 1;
+        });
+      }
+    });
 
-node.folders.forEach(scan);
-}
+    node.folders.forEach(scan);
+  }
 
-scan(data);
-return tags;
+  scan(data);
+  return tags;
 }
 
 function renderTags(){
-let tags = collectTags();
-let div = document.getElementById("tagList");
-div.innerHTML = "";
+  let tags = collectTags();
+  let div = document.getElementById("tagList");
+  div.innerHTML = "";
 
-Object.keys(tags).sort().forEach(tag => {
-let span = document.createElement("span");
-span.className = "tag";
-span.innerText = `#${tag} (${tags[tag]})`;
-span.onclick = () => searchTag(tag);
-div.appendChild(span);
-});
+  Object.keys(tags).sort().forEach(tag => {
+    let span = document.createElement("span");
+    span.className = "tag";
+    span.innerText = `#${tag} (${tags[tag]})`;
+    span.onclick = () => searchTag(tag);
+    div.appendChild(span);
+  });
 }
 
 function renderPath(){
-let path = document.getElementById("path");
-path.innerHTML = "";
+  let path = document.getElementById("path");
+  path.innerHTML = "";
 
-stack.forEach((p, i) => {
-let btn = document.createElement("button");
-btn.innerText = p.name;
-btn.onclick = () => {
-stack = stack.slice(0, i + 1);
-render();
-};
-path.appendChild(btn);
-});
+  stack.forEach((p, i) => {
+    let btn = document.createElement("button");
+    btn.innerText = p.name;
+    btn.onclick = () => {
+      stack = stack.slice(0, i + 1);
+      render();
+    };
+    path.appendChild(btn);
+  });
 }
 
 function searchTag(tag){
-let list = document.getElementById("list");
-list.innerHTML = "";
+  let list = document.getElementById("list");
+  list.innerHTML = "";
 
-function search(node){
-node.logs.forEach((l) => {
-if((l.text || "").includes("#" + tag)){
-let div = document.createElement("div");
-div.className = "card";
-div.innerHTML = `
+  function search(node){
+    node.logs.forEach((l) => {
+      if((l.text || "").includes("#" + tag)){
+        let div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
 <b>${l.date}</b><br>
 ${l.title}<br>
 ${renderMarkdown(l.text)}
 `;
-list.appendChild(div);
-}
-});
+        list.appendChild(div);
+      }
+    });
 
-node.folders.forEach(search);
-}
+    node.folders.forEach(search);
+  }
 
-search(data);
+  search(data);
 }
 
 function render(){
-let node = current();
-let list = document.getElementById("list");
-list.innerHTML = "";
+  let node = current();
+  let list = document.getElementById("list");
+  list.innerHTML = "";
 
-node.folders.forEach((f, i) => {
-let div = document.createElement("div");
-div.className = "folder";
+  node.folders.forEach((f, i) => {
+    let div = document.createElement("div");
+    div.className = "folder";
 
-div.innerHTML = `📁 ${f.name}
+    div.innerHTML = `📁 ${f.name}
 <br>
 <button onclick="deleteFolder(${i});event.stopPropagation()">削除</button>`;
 
-div.onclick = () => {
-stack.push(f);
-render();
-};
+    div.onclick = () => {
+      stack.push(f);
+      render();
+    };
 
-list.appendChild(div);
-});
+    list.appendChild(div);
+  });
 
-node.logs.forEach((l, i) => {
-let div = document.createElement("div");
-div.className = "card";
+  node.logs.forEach((l, i) => {
+    let div = document.createElement("div");
+    div.className = "card";
 
-div.innerHTML = `
+    div.innerHTML = `
 <b>${l.date}</b><br>
 ${l.title}<br>
 ${renderMarkdown(l.text)}
@@ -239,153 +436,163 @@ ${renderMarkdown(l.text)}
 <button onclick="deleteLog(${i})">削除</button>
 `;
 
-list.appendChild(div);
-});
+    list.appendChild(div);
+  });
 
-renderTags();
-renderPath();
+  renderTags();
+  renderPath();
 }
 
-function addFolder(){
-let name = prompt("フォルダ名");
-if(!name) return;
+/* =========================
+   CRUD
+========================= */
 
-current().folders.push({
-name: name,
-folders: [],
-logs: []
-});
+async function addFolder(){
+  let name = prompt("フォルダ名");
+  if(!name) return;
 
-save();
-render();
+  current().folders.push({
+    name: name,
+    folders: [],
+    logs: []
+  });
+
+  await save();
+  render();
 }
 
-function deleteFolder(i){
-if(!confirm("フォルダ削除しますか？")) return;
+async function deleteFolder(i){
+  if(!confirm("フォルダ削除しますか？")) return;
 
-current().folders.splice(i, 1);
-save();
-render();
+  current().folders.splice(i, 1);
+  await save();
+  render();
 }
 
 function openEditor(){
-editingIndex = null;
-document.getElementById("logTitle").value = "";
-document.getElementById("logText").value = "";
-document.getElementById("editorView").style.display = "block";
+  editingIndex = null;
+  document.getElementById("logTitle").value = "";
+  document.getElementById("logText").value = "";
+  document.getElementById("editorView").style.display = "block";
 }
 
 function editLog(i){
-let log = current().logs[i];
-editingIndex = i;
-document.getElementById("logTitle").value = log.title;
-document.getElementById("logText").value = log.text;
-document.getElementById("editorView").style.display = "block";
+  let log = current().logs[i];
+  editingIndex = i;
+  document.getElementById("logTitle").value = log.title;
+  document.getElementById("logText").value = log.text;
+  document.getElementById("editorView").style.display = "block";
 }
 
 function closeEditor(){
-document.getElementById("editorView").style.display = "none";
+  document.getElementById("editorView").style.display = "none";
 }
 
-function saveLog(){
-let title = document.getElementById("logTitle").value;
-let text = document.getElementById("logText").value;
+async function saveLog(){
+  let title = document.getElementById("logTitle").value;
+  let text = document.getElementById("logText").value;
 
-if(!title) return;
+  if(!title) return;
 
-if(editingIndex === null){
-current().logs.push({
-date: new Date().toLocaleDateString(),
-title,
-text
-});
-}else{
-current().logs[editingIndex].title = title;
-current().logs[editingIndex].text = text;
+  if(editingIndex === null){
+    current().logs.push({
+      date: new Date().toLocaleDateString(),
+      title,
+      text
+    });
+  }else{
+    current().logs[editingIndex].title = title;
+    current().logs[editingIndex].text = text;
+  }
+
+  await save();
+  closeEditor();
+  render();
 }
 
-save();
-closeEditor();
-render();
+async function deleteLog(i){
+  if(!confirm("ログ削除しますか？")) return;
+
+  current().logs.splice(i, 1);
+  await save();
+  render();
 }
 
-function deleteLog(i){
-if(!confirm("ログ削除しますか？")) return;
-
-current().logs.splice(i, 1);
-save();
-render();
-}
+/* =========================
+   Search
+========================= */
 
 function searchLogs(){
-let q = document.getElementById("searchBox").value.toLowerCase();
-let list = document.getElementById("list");
-list.innerHTML = "";
+  let q = document.getElementById("searchBox").value;
+  let list = document.getElementById("list");
+  list.innerHTML = "";
 
-function search(node){
-node.logs.forEach((l) => {
-if(
-(l.title || "").toLowerCase().includes(q) ||
-(l.text || "").toLowerCase().includes(q)
-){
-let div = document.createElement("div");
-div.className = "card";
-div.innerHTML = `
-<b>${l.date}</b><br>
-${l.title}<br>
-${renderMarkdown(l.text)}
+  if(!q.trim()){
+    render();
+    return;
+  }
+
+  const results = searchIndexed(q);
+
+  results.forEach((doc) => {
+    let div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+<b>${doc.date}</b><br>
+${doc.title}<br>
+${renderMarkdown(doc.text)}
 `;
-list.appendChild(div);
-}
-});
-
-node.folders.forEach(search);
+    list.appendChild(div);
+  });
 }
 
-search(data);
-}
+/* =========================
+   Import / Export
+========================= */
 
 function exportData(){
-let dataStr = JSON.stringify(data, null, 2);
-let blob = new Blob([dataStr], {type:"application/json"});
-let a = document.createElement("a");
-a.href = URL.createObjectURL(blob);
-a.download = "metalog_backup.json";
-a.click();
+  let dataStr = JSON.stringify(data, null, 2);
+  let blob = new Blob([dataStr], {type:"application/json"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "metalog_backup.json";
+  a.click();
 }
 
 function importData(){
-document.getElementById("importFile").click();
+  document.getElementById("importFile").click();
 }
 
 document.getElementById("importFile").addEventListener("change", function(e){
-let file = e.target.files[0];
-if(!file) return;
+  let file = e.target.files[0];
+  if(!file) return;
 
-let reader = new FileReader();
+  let reader = new FileReader();
 
-reader.onload = function(){
-try{
-data = JSON.parse(reader.result);
-save();
-stack = [data];
-render();
-alert("インポート完了");
-}catch(err){
-alert("読み込みエラー");
-}
-};
+  reader.onload = async function(){
+    try{
+      data = JSON.parse(reader.result);
+      stack = [data];
+      await save();
+      render();
+      alert("インポート完了");
+    }catch(err){
+      alert("読み込みエラー");
+    }
+  };
 
-reader.readAsText(file);
+  reader.readAsText(file);
 });
 
-/* PWA ServiceWorker */
+/* =========================
+   PWA / SW
+========================= */
 
 if ('serviceWorker' in navigator) {
-navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.register('sw.js');
 }
 
-render();
+initApp();
 </script>
 
 </body>
