@@ -73,9 +73,23 @@ input,textarea{
 }
 
 #status{
-  margin:8px 0 14px 0;
+  margin:8px 0 6px 0;
   font-size:13px;
   color:#aaa;
+}
+
+#pwaStatus{
+  margin:0 0 14px 0;
+  font-size:13px;
+  color:#8fd3ff;
+}
+
+#installWrap{
+  margin:0 0 14px 0;
+}
+
+#installBtn{
+  display:none;
 }
 
 #listContainer{
@@ -112,6 +126,11 @@ input,textarea{
 
 <h1>MeTaLog</h1>
 <div id="status">起動中...</div>
+<div id="pwaStatus">PWA状態確認中...</div>
+
+<div id="installWrap">
+  <button id="installBtn">📲 アプリとしてインストール</button>
+</div>
 
 <input id="searchBox" placeholder="検索..." oninput="searchLogs()">
 
@@ -771,11 +790,64 @@ document.getElementById("importFile").addEventListener("change", function(e){
 });
 
 /* =========================
-   PWA / SW
+   PWA / Install Detection
 ========================= */
 
+let deferredPrompt = null;
+const installBtn = document.getElementById("installBtn");
+const pwaStatusEl = document.getElementById("pwaStatus");
+
+function isStandaloneMode(){
+  return window.matchMedia("(display-mode: standalone)").matches ||
+         window.navigator.standalone === true;
+}
+
+function updatePwaStatus(){
+  if(isStandaloneMode()){
+    pwaStatusEl.textContent = "PWA状態: standalone起動です";
+  }else if(deferredPrompt){
+    pwaStatusEl.textContent = "PWA状態: インストール可能です";
+  }else{
+    pwaStatusEl.textContent = "PWA状態: ブラウザ起動です";
+  }
+}
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBtn.style.display = "inline-block";
+  updatePwaStatus();
+});
+
+installBtn.addEventListener("click", async () => {
+  if(!deferredPrompt) return;
+
+  deferredPrompt.prompt();
+  const choiceResult = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installBtn.style.display = "none";
+
+  if(choiceResult.outcome === "accepted"){
+    pwaStatusEl.textContent = "PWA状態: インストールが受け入れられました";
+  }else{
+    pwaStatusEl.textContent = "PWA状態: インストールは見送られました";
+  }
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredPrompt = null;
+  installBtn.style.display = "none";
+  pwaStatusEl.textContent = "PWA状態: アプリとしてインストール済みです";
+});
+
+window.addEventListener("load", () => {
+  updatePwaStatus();
+});
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.register('sw.js').then(() => {
+    setTimeout(updatePwaStatus, 500);
+  });
 }
 
 initApp();
