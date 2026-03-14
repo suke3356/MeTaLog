@@ -108,6 +108,8 @@ input,textarea{
   border:1px solid #333;
   background:#101010;
   margin-bottom:12px;
+  z-index:1;
+  -webkit-overflow-scrolling: touch;
 }
 
 #listViewport{
@@ -144,6 +146,19 @@ input,textarea{
   background:#222;
   padding:2px 6px;
   border-radius:4px;
+}
+
+/* iPhone PWA のタップ判定対策 */
+#searchBox,
+#folderView,
+#editorView,
+#aboutView,
+.toolbar,
+#tagList,
+#path,
+.helperText{
+  position:relative;
+  z-index:10;
 }
 </style>
 </head>
@@ -531,6 +546,7 @@ function renderPath(){
       stack = stack.slice(0, i + 1);
       currentMode = "normal";
       hidePanels();
+      showList();
       render();
     };
     path.appendChild(btn);
@@ -661,6 +677,7 @@ function attachFolderClicks(){
         stack.push(row.folder);
         currentMode = "normal";
         hidePanels();
+        showList();
         render();
       }
     };
@@ -741,6 +758,14 @@ function hidePanels(){
   document.getElementById("aboutView").style.display = "none";
 }
 
+function showList(){
+  document.getElementById("listContainer").style.display = "block";
+}
+
+function hideList(){
+  document.getElementById("listContainer").style.display = "none";
+}
+
 /* =========================
    Render modes
 ========================= */
@@ -750,6 +775,7 @@ function searchTag(tag){
   currentMode = "tag";
   currentSearchResults = searchDocs.filter(doc => (doc.text || "").includes("#" + tag));
   hidePanels();
+  showList();
   setRows(makeSearchRows(currentSearchResults));
 }
 
@@ -758,10 +784,12 @@ function render(){
   renderPath();
 
   if(currentMode === "search" || currentMode === "tag"){
+    showList();
     setRows(makeSearchRows(currentSearchResults));
     return;
   }
 
+  showList();
   setRows(makeNormalRows());
 }
 
@@ -771,12 +799,14 @@ function render(){
 
 function openFolderCreator(){
   hidePanels();
+  hideList();
   document.getElementById("folderName").value = "";
   document.getElementById("folderView").style.display = "block";
 }
 
 function closeFolderCreator(){
   document.getElementById("folderView").style.display = "none";
+  showList();
 }
 
 async function createFolder(){
@@ -806,6 +836,7 @@ async function deleteFolder(i){
 
 function openEditor(){
   hidePanels();
+  hideList();
   editingIndex = null;
   document.getElementById("logTitle").value = "";
   document.getElementById("logText").value = "";
@@ -814,6 +845,7 @@ function openEditor(){
 
 function editLog(i){
   hidePanels();
+  hideList();
   let log = current().logs[i];
   editingIndex = i;
   document.getElementById("logTitle").value = log.title;
@@ -823,6 +855,7 @@ function editLog(i){
 
 function closeEditor(){
   document.getElementById("editorView").style.display = "none";
+  showList();
 }
 
 async function saveLog(){
@@ -867,6 +900,7 @@ function searchLogs(){
   if(!q.trim()){
     currentMode = "normal";
     hidePanels();
+    showList();
     currentSearchResults = [];
     render();
     return;
@@ -874,6 +908,7 @@ function searchLogs(){
 
   currentMode = "search";
   hidePanels();
+  showList();
   currentSearchResults = searchIndexed(q);
   setRows(makeSearchRows(currentSearchResults));
 }
@@ -908,6 +943,7 @@ document.getElementById("importFile").addEventListener("change", function(e){
       await save();
       currentMode = "normal";
       hidePanels();
+      showList();
       currentSearchResults = [];
       render();
       alert("インポート完了");
@@ -925,11 +961,13 @@ document.getElementById("importFile").addEventListener("change", function(e){
 
 function openAbout(){
   hidePanels();
+  hideList();
   document.getElementById("aboutView").style.display = "block";
 }
 
 function closeAbout(){
   document.getElementById("aboutView").style.display = "none";
+  showList();
 }
 
 /* =========================
