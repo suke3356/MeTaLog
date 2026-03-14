@@ -137,6 +137,14 @@ input,textarea{
   padding:2px 6px;
   border-radius:4px;
 }
+
+.toolbar{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+
 </style>
 </head>
 
@@ -163,13 +171,13 @@ input,textarea{
   <div id="listViewport"></div>
 </div>
 
-<div style="display: flex; gap: 10px;">
-<button onclick="addFolder()">📁 フォルダ追加</button>
-<button onclick="openEditor()">📝 ログ追加</button>
-<button onclick="exportData()">📤 エクスポート</button>
-<button onclick="importData()">📥 インポート</button>
-<button onclick="openAbout()">ℹ️ 説明</button>
-<input type="file" id="importFile" style="display:none">
+<div class="toolbar">
+  <button onclick="addFolder()">📁 フォルダ追加</button>
+  <button onclick="openEditor()">📝 ログ追加</button>
+  <button onclick="exportData()">📤 エクスポート</button>
+  <button onclick="importData()">📥 インポート</button>
+  <button onclick="openAbout()">ℹ️ 説明</button>
+  <input type="file" id="importFile" style="display:none">
 </div>
 
 <div id="editorView" style="display:none">
