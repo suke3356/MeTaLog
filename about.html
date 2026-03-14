@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MeTaLog - 説明</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111111">
+
+<style>
+body{
+  font-family:sans-serif;
+  margin:20px;
+  background:#111;
+  color:white;
+}
+button{
+  padding:10px;
+  margin:4px;
+  font-size:15px;
+}
+.panel{
+  margin:18px 0;
+  padding:12px;
+  border:1px solid #333;
+  background:#141414;
+}
+code{
+  background:#222;
+  padding:2px 6px;
+  border-radius:4px;
+}
+</style>
+</head>
+<body>
+
+<h1>MeTaLog について</h1>
+<button onclick="location.href='index.html'">← 戻る</button>
+
+<div class="panel">
+  <h3>これは何？</h3>
+  <p>MeTaLog は、勉強メモ・思考ログ・知識整理のための個人用メモアプリです。</p>
+  <p>フォルダ、タグ、検索、Markdown、バックアップ、オフライン起動に対応しています。</p>
+</div>
+
+<div class="panel">
+  <h3>主な機能</h3>
+  <ul>
+    <li>フォルダで分類</li>
+    <li>タグで横断整理</li>
+    <li>Markdown で読みやすく記述</li>
+    <li>検索で素早く探す</li>
+    <li>インポート / エクスポートでバックアップ</li>
+    <li>PWAとしてホーム画面から起動</li>
+    <li>オフラインでも使用可能</li>
+  </ul>
+</div>
+
+<div class="panel">
+  <h3>使い方</h3>
+  <ol>
+    <li><strong>📁 フォルダ追加</strong> で科目や分類を作る</li>
+    <li>フォルダを開いて <strong>📝 ログ追加</strong></li>
+    <li>本文中に <code>#タグ名</code> を書く</li>
+    <li>上のタグ一覧や検索から後で見返す</li>
+  </ol>
+</div>
+
+<div class="panel">
+  <h3>タグの例</h3>
+  <p><code>#電験</code> <code>#理論</code> <code>#リアクタンス</code> <code>#要復習</code></p>
+</div>
+
+<div class="panel">
+  <h3>保存について</h3>
+  <p>データは端末内の IndexedDB に保存されます。</p>
+  <p>Safari / Chrome のデータ削除で消える可能性があるため、定期的にエクスポートでバックアップするのがおすすめです。</p>
+</div>
+
+</body>
+</html>
