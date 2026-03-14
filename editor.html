@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MeTaLog - ログ入力</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111111">
+
+<style>
+body{
+  font-family:sans-serif;
+  margin:20px;
+  background:#111;
+  color:white;
+}
+button{
+  padding:10px;
+  margin:4px;
+  font-size:15px;
+}
+input,textarea{
+  width:100%;
+  margin:6px 0;
+  padding:10px;
+  font-size:16px;
+  background:#222;
+  color:white;
+  border:1px solid #555;
+  box-sizing:border-box;
+}
+.panel{
+  margin:16px 0;
+  padding:12px;
+  border:1px solid #555;
+  background:#181818;
+}
+</style>
+</head>
+<body>
+
+<h1>ログ入力</h1>
+
+<div class="panel">
+  <button onclick="goBack()">← 戻る</button>
+  <input id="logTitle" placeholder="タイトル">
+  <textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
+  <button onclick="saveLog()">保存</button>
+</div>
+
+<script>
+const DB_NAME = "MeTaLogDB";
+const DB_VERSION = 1;
+const STORE_NAME = "appState";
+const ROOT_KEY = "rootData";
+const UI_STATE_KEY = "metalog_ui_state";
+
+let db = null;
+let data = null;
+let uiState = null;
+
+function openDB(){
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = function(event){
+      const database = event.target.result;
+      if(!database.objectStoreNames.contains(STORE_NAME)){
+        database.createObjectStore(STORE_NAME);
+      }
+    };
+
+    request.onsuccess = function(){ resolve(request.result); };
+    request.onerror = function(){ reject(request.error); };
+  });
+}
+
+function idbGet(key){
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbSet(key, value){
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.put(value, key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getCurrentFolder(root, pathIndexes){
+  let node = root;
+  for(const idx of (pathIndexes || [])){
+    if(!node.folders[idx]) break;
+    node = node.folders[idx];
+  }
+  return node;
+}
+
+async function init(){
+  db = await openDB();
+  data = await idbGet(ROOT_KEY) || { name:"root", folders:[], logs:[] };
+  uiState = JSON.parse(localStorage.getItem(UI_STATE_KEY) || "{}");
+
+  if(uiState.action === "edit-log"){
+    const folder = getCurrentFolder(data, uiState.pathIndexes || []);
+    const log = folder.logs[uiState.logIndex];
+    if(log){
+      document.getElementById("logTitle").value = log.title || "";
+      document.getElementById("logText").value = log.text || "";
+    }
+  }
+}
+
+async function saveLog(){
+  const title = document.getElementById("logTitle").value.trim();
+  const text = document.getElementById("logText").value;
+
+  if(!title) return;
+
+  const folder = getCurrentFolder(data, uiState.pathIndexes || []);
+
+  if(uiState.action === "edit-log"){
+    const log = folder.logs[uiState.logIndex];
+    if(log){
+      log.title = title;
+      log.text = text;
+    }
+  }else{
+    folder.logs.push({
+      date: new Date().toLocaleDateString(),
+      title,
+      text
+    });
+  }
+
+  await idbSet(ROOT_KEY, data);
+  location.href = "index.html";
+}
+
+function goBack(){
+  location.href = "index.html";
+}
+
+init();
+</script>
+
+</body>
+</html>
