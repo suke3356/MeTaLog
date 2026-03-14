@@ -65,7 +65,8 @@ input,textarea{
   margin:10px 0;
 }
 
-#editorView{
+#editorView,
+#aboutView{
   margin-top:16px;
   padding:12px;
   border:1px solid #555;
@@ -119,6 +120,23 @@ input,textarea{
   font-size:13px;
   margin:6px 0;
 }
+
+.aboutSection{
+  margin:18px 0;
+  padding:12px;
+  border:1px solid #333;
+  background:#141414;
+}
+
+.aboutSection h3{
+  margin-top:0;
+}
+
+.aboutSection code{
+  background:#222;
+  padding:2px 6px;
+  border-radius:4px;
+}
 </style>
 </head>
 
@@ -149,6 +167,7 @@ input,textarea{
 <button onclick="openEditor()">📝 ログ追加</button>
 <button onclick="exportData()">📤 エクスポート</button>
 <button onclick="importData()">📥 インポート</button>
+<button onclick="openAbout()">ℹ️ 説明</button>
 <input type="file" id="importFile" style="display:none">
 
 <div id="editorView" style="display:none">
@@ -160,6 +179,70 @@ input,textarea{
   <textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
 
   <button onclick="saveLog()">保存</button>
+</div>
+
+<div id="aboutView" style="display:none">
+  <button onclick="closeAbout()">← 戻る</button>
+  <h2>MeTaLog について</h2>
+
+  <div class="aboutSection">
+    <h3>これは何？</h3>
+    <p>MeTaLog は、勉強メモ・思考ログ・知識整理のための個人用メモアプリです。</p>
+    <p>フォルダ、タグ、検索、Markdown、バックアップ、オフライン起動に対応しています。</p>
+  </div>
+
+  <div class="aboutSection">
+    <h3>主な機能</h3>
+    <ul>
+      <li>フォルダで分類</li>
+      <li>タグで横断整理</li>
+      <li>Markdown で読みやすく記述</li>
+      <li>検索で素早く探す</li>
+      <li>インポート / エクスポートでバックアップ</li>
+      <li>PWAとしてホーム画面から起動</li>
+      <li>オフラインでも使用可能</li>
+    </ul>
+  </div>
+
+  <div class="aboutSection">
+    <h3>使い方</h3>
+    <ol>
+      <li><strong>📁 フォルダ追加</strong> で科目や分類を作る</li>
+      <li>フォルダを開いて <strong>📝 ログ追加</strong></li>
+      <li>本文中に <code>#タグ名</code> を書く</li>
+      <li>上のタグ一覧や検索から後で見返す</li>
+    </ol>
+  </div>
+
+  <div class="aboutSection">
+    <h3>タグの例</h3>
+    <p><code>#電験</code> <code>#理論</code> <code>#リアクタンス</code> <code>#要復習</code></p>
+    <p>タグを押すと、そのタグを含むログ一覧が表示されます。</p>
+  </div>
+
+  <div class="aboutSection">
+    <h3>Markdownの例</h3>
+<pre>
+# 見出し
+## 小見出し
+
+- 箇条書き
+- 箇条書き
+
+**強調**
+</pre>
+  </div>
+
+  <div class="aboutSection">
+    <h3>保存について</h3>
+    <p>データは端末内の IndexedDB に保存されます。</p>
+    <p>Safari / Chrome のデータ削除で消える可能性があるため、定期的に <strong>📤 エクスポート</strong> でバックアップするのがおすすめです。</p>
+  </div>
+
+  <div class="aboutSection">
+    <h3>オフラインについて</h3>
+    <p>一度オンラインで開くと、アプリ本体がキャッシュされるため、次回以降はオフラインでも起動できます。</p>
+  </div>
 </div>
 
 <script>
@@ -228,7 +311,7 @@ function makeEmptyRoot(){
 let data = makeEmptyRoot();
 let stack = [data];
 let editingIndex = null;
-let currentMode = "normal"; // normal | search | tag
+let currentMode = "normal";
 let currentSearchResults = [];
 let currentTag = "";
 
@@ -684,6 +767,7 @@ function openEditor(){
   document.getElementById("logTitle").value = "";
   document.getElementById("logText").value = "";
   document.getElementById("editorView").style.display = "block";
+  document.getElementById("aboutView").style.display = "none";
 }
 
 function editLog(i){
@@ -692,6 +776,7 @@ function editLog(i){
   document.getElementById("logTitle").value = log.title;
   document.getElementById("logText").value = log.text;
   document.getElementById("editorView").style.display = "block";
+  document.getElementById("aboutView").style.display = "none";
 }
 
 function closeEditor(){
@@ -788,6 +873,19 @@ document.getElementById("importFile").addEventListener("change", function(e){
 
   reader.readAsText(file);
 });
+
+/* =========================
+   About
+========================= */
+
+function openAbout(){
+  document.getElementById("aboutView").style.display = "block";
+  document.getElementById("editorView").style.display = "none";
+}
+
+function closeAbout(){
+  document.getElementById("aboutView").style.display = "none";
+}
 
 /* =========================
    PWA / Install Detection
