@@ -65,15 +65,6 @@ input,textarea{
   margin:10px 0;
 }
 
-#editorView,
-#aboutView,
-#folderView{
-  margin:16px 0;
-  padding:12px;
-  border:1px solid #555;
-  background:#181818;
-}
-
 #status{
   margin:8px 0 6px 0;
   font-size:13px;
@@ -131,28 +122,7 @@ input,textarea{
   margin:6px 0;
 }
 
-.aboutSection{
-  margin:18px 0;
-  padding:12px;
-  border:1px solid #333;
-  background:#141414;
-}
-
-.aboutSection h3{
-  margin-top:0;
-}
-
-.aboutSection code{
-  background:#222;
-  padding:2px 6px;
-  border-radius:4px;
-}
-
-/* iPhone PWA のタップ判定対策 */
 #searchBox,
-#folderView,
-#editorView,
-#aboutView,
 .toolbar,
 #tagList,
 #path,
@@ -175,89 +145,6 @@ input,textarea{
 
 <input id="searchBox" placeholder="検索..." oninput="searchLogs()">
 
-<!-- 検索の直下に出すエリア -->
-<div id="folderView" style="display:none">
-  <button onclick="closeFolderCreator()">← 戻る</button>
-  <h2>フォルダ追加</h2>
-  <input id="folderName" placeholder="フォルダ名">
-  <button onclick="createFolder()">作成</button>
-</div>
-
-<div id="editorView" style="display:none">
-  <button onclick="closeEditor()">← 戻る</button>
-
-  <h2>ログ入力</h2>
-
-  <input id="logTitle" placeholder="タイトル">
-  <textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
-
-  <button onclick="saveLog()">保存</button>
-</div>
-
-<div id="aboutView" style="display:none">
-  <button onclick="closeAbout()">← 戻る</button>
-  <h2>MeTaLog について</h2>
-
-  <div class="aboutSection">
-    <h3>これは何？</h3>
-    <p>MeTaLog は、勉強メモ・思考ログ・知識整理のための個人用メモアプリです。</p>
-    <p>フォルダ、タグ、検索、Markdown、バックアップ、オフライン起動に対応しています。</p>
-  </div>
-
-  <div class="aboutSection">
-    <h3>主な機能</h3>
-    <ul>
-      <li>フォルダで分類</li>
-      <li>タグで横断整理</li>
-      <li>Markdown で読みやすく記述</li>
-      <li>検索で素早く探す</li>
-      <li>インポート / エクスポートでバックアップ</li>
-      <li>PWAとしてホーム画面から起動</li>
-      <li>オフラインでも使用可能</li>
-    </ul>
-  </div>
-
-  <div class="aboutSection">
-    <h3>使い方</h3>
-    <ol>
-      <li><strong>📁 フォルダ追加</strong> で科目や分類を作る</li>
-      <li>フォルダを開いて <strong>📝 ログ追加</strong></li>
-      <li>本文中に <code>#タグ名</code> を書く</li>
-      <li>上のタグ一覧や検索から後で見返す</li>
-    </ol>
-  </div>
-
-  <div class="aboutSection">
-    <h3>タグの例</h3>
-    <p><code>#電験</code> <code>#理論</code> <code>#リアクタンス</code> <code>#要復習</code></p>
-    <p>タグを押すと、そのタグを含むログ一覧が表示されます。</p>
-  </div>
-
-  <div class="aboutSection">
-    <h3>Markdownの例</h3>
-<pre>
-# 見出し
-## 小見出し
-
-- 箇条書き
-- 箇条書き
-
-**強調**
-</pre>
-  </div>
-
-  <div class="aboutSection">
-    <h3>保存について</h3>
-    <p>データは端末内の IndexedDB に保存されます。</p>
-    <p>Safari / Chrome のデータ削除で消える可能性があるため、定期的に <strong>📤 エクスポート</strong> でバックアップするのがおすすめです。</p>
-  </div>
-
-  <div class="aboutSection">
-    <h3>オフラインについて</h3>
-    <p>一度オンラインで開くと、アプリ本体がキャッシュされるため、次回以降はオフラインでも起動できます。</p>
-  </div>
-</div>
-
 <h3>タグ</h3>
 <div id="tagList"></div>
 
@@ -279,14 +166,11 @@ input,textarea{
 </div>
 
 <script>
-/* =========================
-   IndexedDB
-========================= */
-
 const DB_NAME = "MeTaLogDB";
 const DB_VERSION = 1;
 const STORE_NAME = "appState";
 const ROOT_KEY = "rootData";
+const UI_STATE_KEY = "metalog_ui_state";
 
 let db = null;
 
@@ -333,32 +217,21 @@ function idbSet(key, value){
   });
 }
 
-/* =========================
-   App State
-========================= */
-
 function makeEmptyRoot(){
   return { name:"root", folders:[], logs:[] };
 }
 
 let data = makeEmptyRoot();
 let stack = [data];
-let editingIndex = null;
+let pathIndexes = [];
 let currentMode = "normal";
 let currentSearchResults = [];
-let currentTag = "";
-
-/* =========================
-   Search Index
-========================= */
 
 let searchDocs = [];
 let gramIndex = new Map();
 
 function normalizeText(text){
-  return (text || "")
-    .toLowerCase()
-    .normalize("NFKC");
+  return (text || "").toLowerCase().normalize("NFKC");
 }
 
 function makeGrams(text){
@@ -372,8 +245,8 @@ function makeGrams(text){
     return grams;
   }
 
-  for(let i=0; i<s.length - 1; i++){
-    grams.add(s.slice(i, i + 2));
+  for(let i=0;i<s.length-1;i++){
+    grams.add(s.slice(i, i+2));
   }
 
   return grams;
@@ -442,15 +315,8 @@ function searchIndexed(query){
   const candidates = candidateSet ? [...candidateSet] : [];
   return candidates
     .map(id => searchDocs[id])
-    .filter(doc => {
-      const source = normalizeText(`${doc.title}\n${doc.text}`);
-      return source.includes(q);
-    });
+    .filter(doc => normalizeText(`${doc.title}\n${doc.text}`).includes(q));
 }
-
-/* =========================
-   Save / Load
-========================= */
 
 async function save(){
   await idbSet(ROOT_KEY, data);
@@ -467,15 +333,49 @@ function setStatus(text){
   if(el) el.textContent = text;
 }
 
+function saveUIState(state){
+  localStorage.setItem(UI_STATE_KEY, JSON.stringify(state));
+}
+
+function clearUIState(){
+  localStorage.removeItem(UI_STATE_KEY);
+}
+
+function restoreFromPathIndexes(indexes){
+  stack = [data];
+  pathIndexes = [];
+
+  let node = data;
+  for(const idx of indexes){
+    if(!node.folders[idx]) break;
+    node = node.folders[idx];
+    stack.push(node);
+    pathIndexes.push(idx);
+  }
+}
+
 async function initApp(){
   try{
     db = await openDB();
 
     const saved = await idbGet(ROOT_KEY);
     data = saved || makeEmptyRoot();
-    stack = [data];
-    rebuildSearchIndex();
 
+    const stateRaw = localStorage.getItem(UI_STATE_KEY);
+    if(stateRaw){
+      try{
+        const state = JSON.parse(stateRaw);
+        restoreFromPathIndexes(state.pathIndexes || []);
+      }catch(e){
+        stack = [data];
+        pathIndexes = [];
+      }
+    }else{
+      stack = [data];
+      pathIndexes = [];
+    }
+
+    rebuildSearchIndex();
     setStatus("IndexedDB使用中");
     render();
   }catch(e){
@@ -483,10 +383,6 @@ async function initApp(){
     setStatus("起動エラー");
   }
 }
-
-/* =========================
-   Markdown / Tags
-========================= */
 
 function parseTags(text){
   return text.replace(/#([^\s#<]+)/g, (m, tag) => {
@@ -544,18 +440,15 @@ function renderPath(){
     btn.innerText = p.name;
     btn.onclick = () => {
       stack = stack.slice(0, i + 1);
+      pathIndexes = pathIndexes.slice(0, i);
       currentMode = "normal";
-      hidePanels();
-      showList();
+      clearUIState();
+      saveUIState({ pathIndexes });
       render();
     };
     path.appendChild(btn);
   });
 }
-
-/* =========================
-   Virtual List
-========================= */
 
 const listContainer = document.getElementById("listContainer");
 const listViewport = document.getElementById("listViewport");
@@ -604,23 +497,14 @@ function makeNormalRows(){
   const node = current();
   const rows = [];
 
-  node.folders.forEach((f, i) => {
-    rows.push({ type:"folder", folder:f, index:i });
-  });
-
-  node.logs.forEach((l, i) => {
-    rows.push({ type:"log", log:l, index:i });
-  });
+  node.folders.forEach((f, i) => rows.push({ type:"folder", folder:f, index:i }));
+  node.logs.forEach((l, i) => rows.push({ type:"log", log:l, index:i }));
 
   return rows;
 }
 
 function makeSearchRows(results){
-  return results.map((doc, i) => ({
-    type:"search",
-    doc,
-    index:i
-  }));
+  return results.map((doc, i) => ({ type:"search", doc, index:i }));
 }
 
 function setRows(rows){
@@ -643,7 +527,7 @@ function rowHTML(row){
 
   if(row.type === "log"){
     return `
-      <div class="card" data-row-index="${row.index}">
+      <div class="card">
         <b>${row.log.date}</b><br>
         ${row.log.title}<br>
         ${renderMarkdown(row.log.text)}
@@ -656,7 +540,7 @@ function rowHTML(row){
 
   if(row.type === "search"){
     return `
-      <div class="card" data-row-index="${row.index}">
+      <div class="card">
         <b>${row.doc.date}</b><br>
         ${row.doc.title}<br>
         ${renderMarkdown(row.doc.text)}
@@ -675,9 +559,9 @@ function attachFolderClicks(){
       const row = virtualRows.find(r => r.type === "folder" && r.index === idx);
       if(row){
         stack.push(row.folder);
+        pathIndexes.push(idx);
+        saveUIState({ pathIndexes });
         currentMode = "normal";
-        hidePanels();
-        showList();
         render();
       }
     };
@@ -724,10 +608,9 @@ function scheduleMeasure(){
 
   requestAnimationFrame(() => {
     scheduledMeasure = false;
-
     let changed = false;
-    const items = listViewport.querySelectorAll(".virtualItem");
 
+    const items = listViewport.querySelectorAll(".virtualItem");
     items.forEach(el => {
       const i = Number(el.dataset.virtualIndex);
       const h = Math.ceil(el.offsetHeight);
@@ -748,34 +631,9 @@ listContainer.addEventListener("scroll", () => {
   renderVirtualViewport();
 });
 
-/* =========================
-   Panel control
-========================= */
-
-function hidePanels(){
-  document.getElementById("folderView").style.display = "none";
-  document.getElementById("editorView").style.display = "none";
-  document.getElementById("aboutView").style.display = "none";
-}
-
-function showList(){
-  document.getElementById("listContainer").style.display = "block";
-}
-
-function hideList(){
-  document.getElementById("listContainer").style.display = "none";
-}
-
-/* =========================
-   Render modes
-========================= */
-
 function searchTag(tag){
-  currentTag = tag;
   currentMode = "tag";
   currentSearchResults = searchDocs.filter(doc => (doc.text || "").includes("#" + tag));
-  hidePanels();
-  showList();
   setRows(makeSearchRows(currentSearchResults));
 }
 
@@ -784,138 +642,68 @@ function render(){
   renderPath();
 
   if(currentMode === "search" || currentMode === "tag"){
-    showList();
     setRows(makeSearchRows(currentSearchResults));
     return;
   }
 
-  showList();
   setRows(makeNormalRows());
 }
 
-/* =========================
-   CRUD
-========================= */
-
 function openFolderCreator(){
-  hidePanels();
-  hideList();
-  document.getElementById("folderName").value = "";
-  document.getElementById("folderView").style.display = "block";
-}
-
-function closeFolderCreator(){
-  document.getElementById("folderView").style.display = "none";
-  showList();
-}
-
-async function createFolder(){
-  const name = document.getElementById("folderName").value.trim();
-  if(!name) return;
-
-  current().folders.push({
-    name: name,
-    folders: [],
-    logs: []
+  saveUIState({
+    pathIndexes,
+    action: "create-folder"
   });
+  location.href = "folder.html";
+}
 
-  await save();
-  closeFolderCreator();
-  currentMode = "normal";
-  render();
+function openEditor(){
+  saveUIState({
+    pathIndexes,
+    action: "create-log"
+  });
+  location.href = "editor.html";
+}
+
+function editLog(index){
+  saveUIState({
+    pathIndexes,
+    action: "edit-log",
+    logIndex: index
+  });
+  location.href = "editor.html";
 }
 
 async function deleteFolder(i){
   if(!confirm("フォルダ削除しますか？")) return;
-
   current().folders.splice(i, 1);
   await save();
   currentMode = "normal";
   render();
 }
 
-function openEditor(){
-  hidePanels();
-  hideList();
-  editingIndex = null;
-  document.getElementById("logTitle").value = "";
-  document.getElementById("logText").value = "";
-  document.getElementById("editorView").style.display = "block";
-}
-
-function editLog(i){
-  hidePanels();
-  hideList();
-  let log = current().logs[i];
-  editingIndex = i;
-  document.getElementById("logTitle").value = log.title;
-  document.getElementById("logText").value = log.text;
-  document.getElementById("editorView").style.display = "block";
-}
-
-function closeEditor(){
-  document.getElementById("editorView").style.display = "none";
-  showList();
-}
-
-async function saveLog(){
-  let title = document.getElementById("logTitle").value;
-  let text = document.getElementById("logText").value;
-
-  if(!title) return;
-
-  if(editingIndex === null){
-    current().logs.push({
-      date: new Date().toLocaleDateString(),
-      title,
-      text
-    });
-  }else{
-    current().logs[editingIndex].title = title;
-    current().logs[editingIndex].text = text;
-  }
-
-  await save();
-  closeEditor();
-  currentMode = "normal";
-  render();
-}
-
 async function deleteLog(i){
   if(!confirm("ログ削除しますか？")) return;
-
   current().logs.splice(i, 1);
   await save();
   currentMode = "normal";
   render();
 }
 
-/* =========================
-   Search
-========================= */
-
 function searchLogs(){
   let q = document.getElementById("searchBox").value;
 
   if(!q.trim()){
     currentMode = "normal";
-    hidePanels();
-    showList();
     currentSearchResults = [];
     render();
     return;
   }
 
   currentMode = "search";
-  hidePanels();
-  showList();
   currentSearchResults = searchIndexed(q);
   setRows(makeSearchRows(currentSearchResults));
 }
-
-/* =========================
-   Import / Export
-========================= */
 
 function exportData(){
   let dataStr = JSON.stringify(data, null, 2);
@@ -940,10 +728,10 @@ document.getElementById("importFile").addEventListener("change", function(e){
     try{
       data = JSON.parse(reader.result);
       stack = [data];
+      pathIndexes = [];
       await save();
+      clearUIState();
       currentMode = "normal";
-      hidePanels();
-      showList();
       currentSearchResults = [];
       render();
       alert("インポート完了");
@@ -955,24 +743,9 @@ document.getElementById("importFile").addEventListener("change", function(e){
   reader.readAsText(file);
 });
 
-/* =========================
-   About
-========================= */
-
 function openAbout(){
-  hidePanels();
-  hideList();
-  document.getElementById("aboutView").style.display = "block";
+  location.href = "about.html";
 }
-
-function closeAbout(){
-  document.getElementById("aboutView").style.display = "none";
-  showList();
-}
-
-/* =========================
-   PWA / Install Detection
-========================= */
 
 let deferredPrompt = null;
 const installBtn = document.getElementById("installBtn");
