@@ -68,7 +68,7 @@ input,textarea{
 #editorView,
 #aboutView,
 #folderView{
-  margin-top:16px;
+  margin:16px 0;
   padding:12px;
   border:1px solid #555;
   background:#181818;
@@ -160,26 +160,7 @@ input,textarea{
 
 <input id="searchBox" placeholder="検索..." oninput="searchLogs()">
 
-<h3>タグ</h3>
-<div id="tagList"></div>
-
-<div id="path"></div>
-
-<div class="helperText">ログ件数が増えても軽くするため、一覧は仮想リスト表示です。</div>
-
-<div class="toolbar">
-  <button onclick="openFolderCreator()">📁 フォルダ追加</button>
-  <button onclick="openEditor()">📝 ログ追加</button>
-  <button onclick="exportData()">📤 エクスポート</button>
-  <button onclick="importData()">📥 インポート</button>
-  <button onclick="openAbout()">ℹ️ 説明</button>
-  <input type="file" id="importFile" style="display:none">
-</div>
-
-<div id="listContainer">
-  <div id="listViewport"></div>
-</div>
-
+<!-- 検索の直下に出すエリア -->
 <div id="folderView" style="display:none">
   <button onclick="closeFolderCreator()">← 戻る</button>
   <h2>フォルダ追加</h2>
@@ -260,6 +241,26 @@ input,textarea{
     <h3>オフラインについて</h3>
     <p>一度オンラインで開くと、アプリ本体がキャッシュされるため、次回以降はオフラインでも起動できます。</p>
   </div>
+</div>
+
+<h3>タグ</h3>
+<div id="tagList"></div>
+
+<div id="path"></div>
+
+<div class="helperText">ログ件数が増えても軽くするため、一覧は仮想リスト表示です。</div>
+
+<div class="toolbar">
+  <button onclick="openFolderCreator()">📁 フォルダ追加</button>
+  <button onclick="openEditor()">📝 ログ追加</button>
+  <button onclick="exportData()">📤 エクスポート</button>
+  <button onclick="importData()">📥 インポート</button>
+  <button onclick="openAbout()">ℹ️ 説明</button>
+  <input type="file" id="importFile" style="display:none">
+</div>
+
+<div id="listContainer">
+  <div id="listViewport"></div>
 </div>
 
 <script>
@@ -529,6 +530,7 @@ function renderPath(){
     btn.onclick = () => {
       stack = stack.slice(0, i + 1);
       currentMode = "normal";
+      hidePanels();
       render();
     };
     path.appendChild(btn);
@@ -658,6 +660,7 @@ function attachFolderClicks(){
       if(row){
         stack.push(row.folder);
         currentMode = "normal";
+        hidePanels();
         render();
       }
     };
@@ -729,6 +732,16 @@ listContainer.addEventListener("scroll", () => {
 });
 
 /* =========================
+   Panel control
+========================= */
+
+function hidePanels(){
+  document.getElementById("folderView").style.display = "none";
+  document.getElementById("editorView").style.display = "none";
+  document.getElementById("aboutView").style.display = "none";
+}
+
+/* =========================
    Render modes
 ========================= */
 
@@ -736,6 +749,7 @@ function searchTag(tag){
   currentTag = tag;
   currentMode = "tag";
   currentSearchResults = searchDocs.filter(doc => (doc.text || "").includes("#" + tag));
+  hidePanels();
   setRows(makeSearchRows(currentSearchResults));
 }
 
@@ -756,10 +770,9 @@ function render(){
 ========================= */
 
 function openFolderCreator(){
+  hidePanels();
   document.getElementById("folderName").value = "";
   document.getElementById("folderView").style.display = "block";
-  document.getElementById("editorView").style.display = "none";
-  document.getElementById("aboutView").style.display = "none";
 }
 
 function closeFolderCreator(){
@@ -792,22 +805,20 @@ async function deleteFolder(i){
 }
 
 function openEditor(){
+  hidePanels();
   editingIndex = null;
   document.getElementById("logTitle").value = "";
   document.getElementById("logText").value = "";
   document.getElementById("editorView").style.display = "block";
-  document.getElementById("aboutView").style.display = "none";
-  document.getElementById("folderView").style.display = "none";
 }
 
 function editLog(i){
+  hidePanels();
   let log = current().logs[i];
   editingIndex = i;
   document.getElementById("logTitle").value = log.title;
   document.getElementById("logText").value = log.text;
   document.getElementById("editorView").style.display = "block";
-  document.getElementById("aboutView").style.display = "none";
-  document.getElementById("folderView").style.display = "none";
 }
 
 function closeEditor(){
@@ -855,12 +866,14 @@ function searchLogs(){
 
   if(!q.trim()){
     currentMode = "normal";
+    hidePanels();
     currentSearchResults = [];
     render();
     return;
   }
 
   currentMode = "search";
+  hidePanels();
   currentSearchResults = searchIndexed(q);
   setRows(makeSearchRows(currentSearchResults));
 }
@@ -894,6 +907,7 @@ document.getElementById("importFile").addEventListener("change", function(e){
       stack = [data];
       await save();
       currentMode = "normal";
+      hidePanels();
       currentSearchResults = [];
       render();
       alert("インポート完了");
@@ -910,9 +924,8 @@ document.getElementById("importFile").addEventListener("change", function(e){
 ========================= */
 
 function openAbout(){
+  hidePanels();
   document.getElementById("aboutView").style.display = "block";
-  document.getElementById("editorView").style.display = "none";
-  document.getElementById("folderView").style.display = "none";
 }
 
 function closeAbout(){
