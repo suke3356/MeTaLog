@@ -1,8 +1,11 @@
-const CACHE_NAME = "metalog-cache-v3";
+const CACHE_NAME = "metalog-cache-v4";
 
 const URLS_TO_CACHE = [
   "./",
   "./index.html",
+  "./editor.html",
+  "./folder.html",
+  "./about.html",
   "./manifest.json",
   "https://cdn.jsdelivr.net/npm/marked/marked.min.js"
 ];
@@ -35,7 +38,7 @@ self.addEventListener("fetch", event => {
       if(cached) return cached;
 
       return fetch(event.request).then(response => {
-        if(!response || response.status !== 200 || response.type !== "basic"){
+        if(!response || response.status !== 200){
           return response;
         }
 
