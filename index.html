@@ -252,6 +252,10 @@ function makeGrams(text){
   return grams;
 }
 
+function getLogDisplayDate(log){
+  return log.updatedAt || log.createdAt || log.date || "";
+}
+
 function flattenLogs(node, pathNames = []){
   let result = [];
 
@@ -260,6 +264,9 @@ function flattenLogs(node, pathNames = []){
       title: log.title || "",
       text: log.text || "",
       date: log.date || "",
+      createdAt: log.createdAt || "",
+      updatedAt: log.updatedAt || "",
+      displayDate: getLogDisplayDate(log),
       path: [...pathNames, node.name],
       nodeRef: log,
       folderRef: node,
@@ -528,7 +535,7 @@ function rowHTML(row){
   if(row.type === "log"){
     return `
       <div class="card">
-        <b>${row.log.date}</b><br>
+        <b>${getLogDisplayDate(row.log)}</b><br>
         ${row.log.title}<br>
         ${renderMarkdown(row.log.text)}
         <br>
@@ -541,7 +548,7 @@ function rowHTML(row){
   if(row.type === "search"){
     return `
       <div class="card">
-        <b>${row.doc.date}</b><br>
+        <b>${row.doc.displayDate || row.doc.updatedAt || row.doc.createdAt || row.doc.date || ""}</b><br>
         ${row.doc.title}<br>
         ${renderMarkdown(row.doc.text)}
       </div>
