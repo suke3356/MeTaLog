@@ -34,6 +34,11 @@ input,textarea{
   border:1px solid #555;
   background:#181818;
 }
+.meta{
+  margin:8px 0 0 0;
+  font-size:13px;
+  color:#aaa;
+}
 </style>
 </head>
 <body>
@@ -44,6 +49,7 @@ input,textarea{
   <button onclick="goBack()">← 戻る</button>
   <input id="logTitle" placeholder="タイトル">
   <textarea id="logText" rows="12" placeholder="本文 (Markdown可)"></textarea>
+  <div id="logMeta" class="meta"></div>
   <button onclick="saveLog()">保存</button>
 </div>
 
@@ -103,6 +109,33 @@ function getCurrentFolder(root, pathIndexes){
   return node;
 }
 
+function getDateTimeString(){
+  const now = new Date();
+
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const h = String(now.getHours()).padStart(2, "0");
+  const min = String(now.getMinutes()).padStart(2, "0");
+
+  return `${y}-${m}-${d} ${h}:${min}`;
+}
+
+function updateMetaInfo(log){
+  const meta = document.getElementById("logMeta");
+  if(!meta) return;
+
+  if(!log){
+    meta.textContent = "新規ログ作成";
+    return;
+  }
+
+  const created = log.createdAt || log.date || "";
+  const updated = log.updatedAt || log.date || "";
+
+  meta.textContent = `作成: ${created} / 更新: ${updated}`;
+}
+
 async function init(){
   db = await openDB();
   data = await idbGet(ROOT_KEY) || { name:"root", folders:[], logs:[] };
@@ -114,15 +147,20 @@ async function init(){
     if(log){
       document.getElementById("logTitle").value = log.title || "";
       document.getElementById("logText").value = log.text || "";
+      updateMetaInfo(log);
+      return;
     }
   }
+
+  updateMetaInfo(null);
 }
 
 async function saveLog(){
   const title = document.getElementById("logTitle").value.trim();
   const text = document.getElementById("logText").value;
+  const nowString = getDateTimeString();
 
-  if(!title) return;
+  if(!title) return alert("タイトルを入力してください");
 
   const folder = getCurrentFolder(data, uiState.pathIndexes || []);
 
@@ -131,10 +169,19 @@ async function saveLog(){
     if(log){
       log.title = title;
       log.text = text;
+
+      if(!log.createdAt){
+        log.createdAt = log.date || nowString;
+      }
+
+      log.updatedAt = nowString;
+      log.date = nowString;
     }
   }else{
     folder.logs.push({
-      date: new Date().toLocaleDateString(),
+      date: nowString,
+      createdAt: nowString,
+      updatedAt: nowString,
       title,
       text
     });
